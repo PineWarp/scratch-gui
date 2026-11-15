@@ -1,6 +1,6 @@
 {
     "name": "Project text tools",
-    "description": "Search, replace and export every piece of text in your project - messages, questions, numbers and more - across all sprites at once.",
+    "description": "Search, replace and export literal text fields - messages, questions and other visible text - across all sprites at once. Dropdowns, variables and numeric fields are intentionally not modified.",
     "credits": [
         {
             "name": "PineWarp"

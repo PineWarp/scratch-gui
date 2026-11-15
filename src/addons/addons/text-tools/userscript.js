@@ -13,36 +13,6 @@ import Utils from '../../../lib/find-bar/Utils.js';
 import downloadBlob from '../../../lib/utils/download-blob.js';
 import {updateCallbacks} from '../../../lib/shortcuts/event-router.js';
 
-// Fields that hold a reference (variable, list, broadcast) or a dropdown value.
-// Replacing them would break the project, so they are skipped unless the user
-// explicitly asks for them.
-const REFERENCE_FIELDS = new Set([
-    'VARIABLE',
-    'LIST',
-    'BROADCAST_OPTION',
-    'COSTUME',
-    'BACKDROP',
-    'SOUND_MENU',
-    'KEY_OPTION',
-    'EFFECT',
-    'OPERATOR',
-    'STYLE',
-    'TOUCHINGOBJECTMENU',
-    'CLONE_OPTION',
-    'TO',
-    'PROPERTY',
-    'CURRENTMENU',
-    'DISTANCETOMENU',
-    'GO_TO_MENU',
-    'GLIDE_TO_MENU',
-    'POINT_TOWARDS_MENU',
-    'SET_ROTATION_STYLE',
-    'MENU',
-    'CHOICE',
-    'OPTION',
-    'MESSAGE_TYPE'
-]);
-
 const NUMBER_FIELDS = new Set([
     'NUM',
     'SECS',
@@ -107,11 +77,11 @@ export default async function ({addon, console, msg}) {
         searchAllSprites: Boolean(addon.settings.get('searchAllSprites')),
         caseSensitive: Boolean(addon.settings.get('caseSensitive')),
         wholeField: false,
-        includeReferences: false,
         entries: [],
         matches: [],
         lastBatch: null,
-        lastBatchLabel: ''
+        lastBatchLabel: '',
+        vmIdentity: null
     };
 
     // ---------------------------------------------------------------- scanning
@@ -122,6 +92,20 @@ export default async function ({addon, console, msg}) {
         if (NUMBER_FIELDS.has(fieldName)) return msg('field-number');
         if (TEXT_FIELDS.has(fieldName)) return msg('field-text');
         return fieldName;
+    };
+
+    const getVmIdentity = () => {
+        const vm = getVM();
+        if (!vm || !vm.runtime) return null;
+        const editingTarget = vm.runtime.getEditingTarget();
+        return {
+            vm,
+            // Object identity also catches fresh VM instances even when the
+            // project has no visible text fields.
+            runtime: vm.runtime,
+            editingTarget,
+            projectId: vm.runtime.projectId
+        };
     };
 
     const collectEntries = () => {
@@ -150,9 +134,13 @@ export default async function ({addon, console, msg}) {
                 if (!block || !block.fields) continue;
                 for (const fieldName of Object.keys(block.fields)) {
                     const field = block.fields[fieldName];
+                    // Only literal text fields are editable here. Anything with
+                    // an id is a variable/list/broadcast reference, and the
+                    // dropdown menu fields below would break the project if
+                    // their values changed without also changing field ids.
                     if (!field || typeof field.value !== 'string') continue;
-                    if (field.id) continue; // variable / list / broadcast reference
-                    if (!state.includeReferences && REFERENCE_FIELDS.has(fieldName)) continue;
+                    if (field.id) continue;
+                    if (!TEXT_FIELDS.has(fieldName)) continue;
                     if (field.value === '') continue;
                     entries.push({
                         targetId: target.id,
@@ -255,10 +243,6 @@ export default async function ({addon, console, msg}) {
     });
     makeOption(msg('option-whole-field'), state.wholeField, checked => {
         state.wholeField = checked;
-        refresh();
-    });
-    makeOption(msg('option-references'), state.includeReferences, checked => {
-        state.includeReferences = checked;
         refresh();
     });
 
@@ -443,25 +427,35 @@ export default async function ({addon, console, msg}) {
 
     // -------------------------------------------------------------- replacing
 
-    const writeFieldValue = (target, entry, newValue, workspace, editingTargetId) => {
-        const block = target.blocks && target.blocks._blocks && target.blocks._blocks[entry.blockId];
-        if (!block || !block.fields || !block.fields[entry.fieldName]) return null;
-        const field = block.fields[entry.fieldName];
-        const oldValue = field.value;
-        if (oldValue === newValue) return null;
+    const writeFieldValue = (target, item, newValue, expectedValue, workspace, editingTargetId, Blockly) => {
+        const block = target.blocks && target.blocks._blocks && target.blocks._blocks[item.blockId];
+        if (!block || !block.fields || !block.fields[item.fieldName]) return false;
+        const field = block.fields[item.fieldName];
+
+        // The field must still hold the value this batch expects:
+        // - replace expects the originally searched value,
+        // - undo expects the value the replacement produced.
+        // This keeps later user edits safe from being clobbered.
+        if (typeof expectedValue === 'string' && field.value !== expectedValue) return false;
+
         field.value = newValue;
 
         if (workspace && editingTargetId === target.id) {
-            const blocklyBlock = workspace.getBlockById(entry.blockId);
+            const blocklyBlock = workspace.getBlockById(item.blockId);
             if (blocklyBlock && typeof blocklyBlock.setFieldValue === 'function') {
                 try {
-                    blocklyBlock.setFieldValue(newValue, entry.fieldName);
+                    // Keep Blockly's own undo/redo stack out of this bulk update;
+                    // the addon provides its own one-step undo instead.
+                    if (Blockly && Blockly.Events) Blockly.Events.disable();
+                    blocklyBlock.setFieldValue(newValue, item.fieldName);
                 } catch (error) {
                     console.warn('[text-tools] could not update rendered block', error);
+                } finally {
+                    if (Blockly && Blockly.Events) Blockly.Events.enable();
                 }
             }
         }
-        return oldValue;
+        return true;
     };
 
     const applyBatch = async (batch, direction) => {
@@ -470,8 +464,9 @@ export default async function ({addon, console, msg}) {
 
         let workspace = null;
         let editingTargetId = null;
+        let Blockly = null;
         try {
-            const Blockly = await addon.tab.traps.getBlockly();
+            Blockly = await addon.tab.traps.getBlockly();
             workspace = Blockly.getMainWorkspace();
             const editingTarget = vm.runtime.getEditingTarget();
             editingTargetId = editingTarget ? editingTarget.id : null;
@@ -485,15 +480,28 @@ export default async function ({addon, console, msg}) {
             const target = vm.runtime.targets.find(candidate => candidate.id === item.targetId);
             if (!target) continue;
             const newValue = direction === 'undo' ? item.oldValue : item.newValue;
-            const oldValue = writeFieldValue(target, item, newValue, workspace, editingTargetId);
-            if (oldValue === null) continue;
+            const expectedValue = direction === 'undo' ? item.newValue : item.oldValue;
+            const applied = writeFieldValue(
+                target, item, newValue, expectedValue, workspace, editingTargetId, Blockly
+            );
+            if (!applied) continue;
             changed += 1;
             touched.add(target);
         }
 
         for (const target of touched) {
+            if (target.blocks && typeof target.blocks.resetCache === 'function') {
+                target.blocks.resetCache();
+            }
             if (target.blocks && typeof target.blocks.emitProjectChanged === 'function') {
                 target.blocks.emitProjectChanged();
+            }
+        }
+        if (changed > 0) {
+            try {
+                vm.runtime.requestBlocksUpdate();
+            } catch (error) {
+                console.warn('[text-tools] could not refresh workspace', error);
             }
         }
         return changed;
@@ -505,6 +513,9 @@ export default async function ({addon, console, msg}) {
         const vm = getVM();
         if (!vm || !vm.runtime) return;
 
+        const identity = getVmIdentity();
+        state.vmIdentity = identity;
+
         const batch = [];
         for (const entry of state.matches) {
             const newValue = buildReplacement(entry.value);
@@ -514,6 +525,7 @@ export default async function ({addon, console, msg}) {
                 blockId: entry.blockId,
                 fieldName: entry.fieldName,
                 oldValue: entry.value,
+                expectedValue: entry.value,
                 newValue
             });
         }
@@ -542,6 +554,14 @@ export default async function ({addon, console, msg}) {
 
     // ---------------------------------------------------------------- exporting
 
+    const startsCsvFormula = value => /^[=+\-@\t\r]/.test(value);
+
+    const csvSafeValue = value => {
+        // Prevent spreadsheet applications from interpreting exported values
+        // as formulas or commands.
+        return startsCsvFormula(value) ? `'${value}` : value;
+    };
+
     const exportCSV = () => {
         const rows = state.matches.length > 0 ? state.matches : state.entries;
         if (rows.length === 0) {
@@ -554,8 +574,13 @@ export default async function ({addon, console, msg}) {
 
         const lines = [header.map(escapeCSVValue).join(',')];
         for (const entry of rows) {
-            const values = [entry.targetName, entry.opcode, fieldLabel(entry.fieldName), entry.value];
-            if (state.query) values.push(buildReplacement(entry.value));
+            const values = [
+                csvSafeValue(entry.targetName),
+                csvSafeValue(entry.opcode),
+                fieldLabel(entry.fieldName),
+                csvSafeValue(entry.value)
+            ];
+            if (state.query) values.push(csvSafeValue(buildReplacement(entry.value)));
             lines.push(values.map(escapeCSVValue).join(','));
         }
 
@@ -599,6 +624,19 @@ export default async function ({addon, console, msg}) {
     exportButton.addEventListener('click', exportCSV);
 
     const openModal = () => {
+        const identity = getVmIdentity();
+        // A new project was loaded since the last undo point; restoring old
+        // values into it would corrupt the new project.
+        if (identity && state.vmIdentity && (
+            identity.vm !== state.vmIdentity.vm ||
+            identity.runtime !== state.vmIdentity.runtime ||
+            identity.projectId !== state.vmIdentity.projectId
+        )) {
+            state.lastBatch = null;
+            state.lastBatchLabel = '';
+            undoButton.hidden = true;
+        }
+        state.vmIdentity = identity;
         // Pick up the current sprite / project state every time the dialog opens.
         setStatus('');
         refresh();
