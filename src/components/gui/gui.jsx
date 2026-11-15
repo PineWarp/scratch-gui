@@ -80,6 +80,7 @@ const TWCustomExtensionModal = React.lazy(() => import('../../containers/tw-cust
 const TWFontsModal = React.lazy(() => import('../../containers/tw-fonts-modal.jsx'));
 const MWAssetsModal = React.lazy(() => import('../../containers/mw-assets-modal.jsx'));
 const MWProjectMetadataModal = React.lazy(() => import('../../containers/mw-project-metadata-modal.jsx'));
+const ShareStudio = React.lazy(() => import('../../containers/share-studio.jsx'));
 const TWDebugger = React.lazy(() => import('../../containers/tw-debugger.jsx'));
 const TWPerfPanel = React.lazy(() => import('../../containers/tw-perf-panel.jsx'));
 const TWUsernameModal = React.lazy(() => import('../../containers/tw-username-modal.jsx'));
@@ -917,6 +918,7 @@ const GUIComponent = props => {
         fontsModalVisible,
         assetsModalVisible,
         projectMetadataModalVisible,
+        shareStudioVisible,
         unknownPlatformModalVisible,
         invalidProjectModalVisible,
         gitModalVisible,
@@ -1005,6 +1007,11 @@ const GUIComponent = props => {
                     <MWProjectMetadataModal />
                 </React.Suspense>
             )}
+            {shareStudioVisible && (
+                <React.Suspense fallback={null}>
+                    <ShareStudio />
+                </React.Suspense>
+            )}
             {unknownPlatformModalVisible && <TWUnknownPlatformModal />}
             {invalidProjectModalVisible && <TWInvalidProjectModal />}
             <React.Suspense fallback={null}>
@@ -1025,6 +1032,7 @@ const GUIComponent = props => {
         fontsModalVisible,
         assetsModalVisible,
         projectMetadataModalVisible,
+        shareStudioVisible,
         unknownPlatformModalVisible,
         invalidProjectModalVisible,
         gitModalVisible,
@@ -1536,6 +1544,7 @@ GUIComponent.propTypes = {
     fontsModalVisible: PropTypes.bool,
     assetsModalVisible: PropTypes.bool,
     projectMetadataModalVisible: PropTypes.bool,
+    shareStudioVisible: PropTypes.bool,
     unknownPlatformModalVisible: PropTypes.bool,
     invalidProjectModalVisible: PropTypes.bool,
     gitModalVisible: PropTypes.bool,

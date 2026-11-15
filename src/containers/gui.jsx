@@ -341,6 +341,7 @@ const mapStateToProps = state => {
         invalidProjectModalVisible: state.scratchGui.modals.invalidProjectModal,
         gitModalVisible: state.scratchGui.modals.gitModal,
         projectMetadataModalVisible: state.scratchGui.modals.projectMetadataModal,
+        shareStudioVisible: state.scratchGui.modals.shareStudioModal,
         vm: state.scratchGui.vm,
         customShortcuts: state.scratchGui.shortcuts.customShortcuts
     };

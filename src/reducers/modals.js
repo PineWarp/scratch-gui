@@ -31,6 +31,7 @@ const MODAL_ROTUR_LOGIN = 'roturLoginModal';
 const MODAL_PROJECT_METADATA = 'projectMetadataModal';
 const MODAL_HELP = 'helpModal';
 const MODAL_PERF = 'perfModal';
+const MODAL_SHARE_STUDIO = 'shareStudioModal';
 
 const initialState = {
     [MODAL_BACKDROP_LIBRARY]: false,
@@ -63,6 +64,7 @@ const initialState = {
     [MODAL_PROJECT_METADATA]: false,
     [MODAL_HELP]: false,
     [MODAL_PERF]: false,
+    [MODAL_SHARE_STUDIO]: false,
     projectMetadataView: 'project',
     helpEntry: null
 };
@@ -208,6 +210,12 @@ const openProjectMetadataModal = function (view) {
 const closeProjectMetadataModal = function () {
     return closeModal(MODAL_PROJECT_METADATA);
 };
+const openShareStudioModal = function () {
+    return openModal(MODAL_SHARE_STUDIO);
+};
+const closeShareStudioModal = function () {
+    return closeModal(MODAL_SHARE_STUDIO);
+};
 const openHelp = function (entryId) {
     return {
         type: 'scratch-gui/modals/SET_HELP_MODAL',
@@ -330,6 +338,8 @@ export {
     closeRoturLoginModal,
     openProjectMetadataModal,
     closeProjectMetadataModal,
+    openShareStudioModal,
+    closeShareStudioModal,
     openHelp,
     closeHelpModal,
     openSimpleDialog,
