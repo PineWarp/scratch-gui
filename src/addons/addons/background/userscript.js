@@ -1421,8 +1421,10 @@ async function resizeWorkspaceBackground() {
         const mode = await getSetting('WorkSpaceBGLayout') || 'stretch';
         const offsetX = await getSetting('WorkSpaceBGOffsetX') || 0;
         const offsetY = await getSetting('WorkSpaceBGOffsetY') || 0;
-        const workspace = document.querySelector('[class*=gui_blocks-wrapper]');
         const bgImage = document.querySelector('.sa-background-image');
+        // 以背景图实际所在的容器为准，避免查到的节点和挂载点不是同一个
+        const workspace = (bgImage && bgImage.parentElement) ||
+            document.querySelector('[class*=gui_blocks-wrapper]');
         if (bgImage && workspace) {
             applyBackgroundLayout({
                 image: bgImage,
@@ -1440,6 +1442,47 @@ async function resizeWorkspaceBackground() {
         console.warn('Failed to resize background image:', e);
     }
 
+}
+
+/**
+ * 积木区的尺寸并不只会随窗口变化（切换标签页、拖动分类栏分隔条、显示/隐藏舞台、进入全屏等），
+ * 而背景图是按创建时的容器尺寸写死宽高的，尺寸一变就会露底。
+ * 这里用 ResizeObserver 跟随容器尺寸重绘，并用 requestAnimationFrame 合并连续回调。
+ */
+let observedWorkspace = null;
+let workspaceResizeObserver = null;
+let workspaceResizeFrame = null;
+
+function observeWorkspaceSize(workspace) {
+    if (typeof ResizeObserver === 'undefined' || !workspace) return;
+    if (workspaceResizeObserver && observedWorkspace === workspace) return;
+
+    if (workspaceResizeObserver) {
+        workspaceResizeObserver.disconnect();
+    }
+    observedWorkspace = workspace;
+
+    workspaceResizeObserver = new ResizeObserver(() => {
+        if (workspaceResizeFrame) return;
+        workspaceResizeFrame = window.requestAnimationFrame(() => {
+            workspaceResizeFrame = null;
+            if (!document.querySelector('.sa-background-image')) return;
+            resizeWorkspaceBackground();
+        });
+    });
+    workspaceResizeObserver.observe(workspace);
+}
+
+function stopObservingWorkspaceSize() {
+    if (workspaceResizeFrame) {
+        window.cancelAnimationFrame(workspaceResizeFrame);
+        workspaceResizeFrame = null;
+    }
+    if (workspaceResizeObserver) {
+        workspaceResizeObserver.disconnect();
+        workspaceResizeObserver = null;
+    }
+    observedWorkspace = null;
 }
 
 
@@ -1461,6 +1504,7 @@ async function refreshWorkSpaceBackground() {
         existingBackgrounds.slice(1).forEach((backgroundImage) => backgroundImage.remove());
 
         if (!wallpaper || !wallpaper.link) {
+            stopObservingWorkspaceSize();
             if (existingBg) {
                 existingBg.style.transition = `opacity ${animationDuration}ms ease-out`;
                 existingBg.style.opacity = '0';
@@ -1526,6 +1570,7 @@ async function createNewBackground(wallpaper, workspace, animationDuration) {
     background.style.transition = `opacity ${animationDuration}ms ease-in`; // Add transition for fade in
 
     workspace.prepend(background);
+    observeWorkspaceSize(workspace);
     await resizeWorkspaceBackground();
 
     // Trigger fade in
