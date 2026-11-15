@@ -929,6 +929,7 @@ const GUIComponent = props => {
         vm,
         enableStageResize: _enableStageResize, // eslint-disable-line no-unused-vars
         customShortcuts: _customShortcuts, // eslint-disable-line no-unused-vars
+        onSetCloud: _onSetCloud, // eslint-disable-line no-unused-vars
         ...componentProps
     } = omit(props, 'dispatch');
     if (children) {
