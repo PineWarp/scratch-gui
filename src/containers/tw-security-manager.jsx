@@ -331,7 +331,18 @@ class TWSecurityManagerComponent extends React.Component {
 
     handleProjectLoading ({stage}) {
         if (stage !== 'building') return;
-        this.props.vm.runtime._mwProjectTrusted = false;
+        // Keep the verdict the load path declared instead of resetting it.
+        // A project the user opened from their own computer (or one they own on
+        // the platform) is trusted by provenance: loadProject() was called with
+        // mwCanTrustProject, which is what canTrustLoadedProject() reads.
+        // Resetting it to false here made canLoadExtensionFromProject() ask once
+        // per unofficial extension, behind a loading overlay that hides the
+        // prompt; each unanswered prompt burned the modal timeout, so a project
+        // with a few extensions sat on "Adding sprites …" until the 60s timeout
+        // failed the whole load, and the extensions were handed to the sandbox
+        // where data: URL scripts never finish loading. Projects with no verdict
+        // to keep are unaffected.
+        this.props.vm.runtime._mwProjectTrusted = canTrustLoadedProject(this.props.vm);
         extensionsTrustedByUser.clear();
         customExtensionUrls.clear();
         sandboxModeCache.clear();
