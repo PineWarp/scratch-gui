@@ -247,7 +247,7 @@ importers:
         version: https://codeload.github.com/Bilup/scratch-audio/tar.gz/4a4e4b225280eb4541d6997aa22f678a35ab1ae6
       scratch-blocks:
         specifier: github:Bilup/new-scratch-blocks#develop-builds
-        version: https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/6fe820afac5847a950a8900cea5bf4ee0178fcaf
+        version: https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/5c42c76c68c966a6701e60f31dc43f1caec88c05
       scratch-paint:
         specifier: github:Bilup/scratch-paint#develop
         version: https://codeload.github.com/Bilup/scratch-paint/tar.gz/4cb0048fa1ea0b63b765a28e839e20aee72e1cc7(react-dom@16.14.0(react@16.14.0))(react-intl-redux@0.7.0(react-intl@2.9.0(prop-types@15.8.1)(react@16.14.0))(react-redux@5.0.7(react@16.14.0)(redux@3.7.2)))(react-intl@2.9.0(prop-types@15.8.1)(react@16.14.0))(react-popover@0.5.10)(react-redux@5.0.7(react@16.14.0)(redux@3.7.2))(react-responsive@5.0.0(react@16.14.0))(react-style-proptype@3.2.2)(react-tooltip@3.8.0(react-dom@16.14.0(react@16.14.0))(react@16.14.0))(react@16.14.0)(redux@3.7.2)(scratch-render-fonts@https://codeload.github.com/Bilup/scratch-render-fonts/tar.gz/d09642667e6b3ca7cf9420cd92350ce177694ad5)
@@ -6021,8 +6021,8 @@ packages:
     resolution: {tarball: https://codeload.github.com/Bilup/scratch-audio/tar.gz/4a4e4b225280eb4541d6997aa22f678a35ab1ae6}
     version: 0.1.0
 
-  scratch-blocks@https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/6fe820afac5847a950a8900cea5bf4ee0178fcaf:
-    resolution: {tarball: https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/6fe820afac5847a950a8900cea5bf4ee0178fcaf}
+  scratch-blocks@https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/5c42c76c68c966a6701e60f31dc43f1caec88c05:
+    resolution: {tarball: https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/5c42c76c68c966a6701e60f31dc43f1caec88c05}
     version: 0.1.0
 
   scratch-paint@https://codeload.github.com/Bilup/scratch-paint/tar.gz/4cb0048fa1ea0b63b765a28e839e20aee72e1cc7:
@@ -14258,7 +14258,7 @@ snapshots:
       '@turbowarp/nanolog': 0.2.0
       '@turbowarp/startaudiocontext': 1.0.0
 
-  scratch-blocks@https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/6fe820afac5847a950a8900cea5bf4ee0178fcaf:
+  scratch-blocks@https://codeload.github.com/Bilup/new-scratch-blocks/tar.gz/5c42c76c68c966a6701e60f31dc43f1caec88c05:
     dependencies:
       exports-loader: 0.7.0
       imports-loader: 0.8.0
