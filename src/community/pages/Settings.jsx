@@ -5,10 +5,6 @@ import {Menu, Palette, SwatchBook, Brush} from 'lucide-react';
 import {applyTheme, detectTheme} from '../../lib/themes/themePersistance.js';
 import {ThemeAccentPanel} from '../../components/tw-settings-modal/theme-accent-panel.jsx';
 import CustomThemesPage from '../../components/tw-settings-modal/custom-themes-page.jsx';
-<<<<<<< eea4f3f
-import PineWarpThemePanel from '../components/WarpThemePanel.jsx';
-=======
->>>>>>> bilup/develop
 import Sidebar from '../components/Sidebar.jsx';
 import {
     getAccentMenuBar,
@@ -38,20 +34,9 @@ const ALL_SECTIONS = [
     {key: 'theme', labelKey: 'mw.community.settings.section.theme', labelDefault: 'Theme', icon: Palette},
     {key: 'project-themes', labelKey: 'mw.community.settings.section.project-themes', labelDefault: 'Project themes', icon: Brush},
     {key: 'custom-themes', labelKey: 'mw.community.settings.section.custom-themes', labelDefault: 'Custom themes', icon: SwatchBook},
-<<<<<<< eea4f3f
-    {key: 'pinewarptheme', labelKey: 'mw.community.settings.section.pinewarptheme', labelDefault: 'PineWarpTheme', icon: Store},
-    {key: 'menu-bar', labelKey: 'mw.community.settings.section.menu-bar', labelDefault: 'Menu bar', icon: Menu},
-    {key: 'presence', labelKey: 'mw.community.settings.section.presence', labelDefault: 'Presence', icon: Radio},
-    {key: 'identity', labelKey: 'mw.community.settings.section.identity', labelDefault: 'Identity', icon: User}
-];
-
-const DESKTOP_HIDDEN_SECTIONS = new Set(['pinewarptheme', 'identity', 'presence']);
-
-=======
     {key: 'menu-bar', labelKey: 'mw.community.settings.section.menu-bar', labelDefault: 'Menu bar', icon: Menu}
 ];
 
->>>>>>> bilup/develop
 const MENU_BAR_TEXT_LABEL_KEYS = {
     auto: 'mw.community.settings.menuBarText.auto',
     light: 'mw.community.settings.menuBarText.light',
@@ -109,7 +94,7 @@ const Settings = () => {
             <h1>{t('mw.community.settings.title', 'Settings')}</h1>
             <p className={styles.lead}>
                 {t('mw.community.settings.lead',
-                    'These settings apply across all of PineWarp, including the editor and site.')}
+                    'These settings apply across all of Bilup, including the editor and site.')}
             </p>
 
             <div className={styles.layout}>
@@ -136,20 +121,6 @@ const Settings = () => {
                             <CustomThemesPage
                                 theme={theme}
                                 onChangeTheme={applyAndPersist}
-<<<<<<< eea4f3f
-                                onOpenWarpThemeMarketplace={desktopApp ? null : () => setActiveSection('pinewarptheme')}
-                            />
-                        </section>
-                    ) : null}
-
-                    {activeSection === 'pinewarptheme' ? (
-                        <section className={styles.card}>
-                            <h2>{t('mw.community.settings.pinewarptheme', 'PineWarpTheme marketplace')}</h2>
-                            <PineWarpThemePanel
-                                theme={theme}
-                                onThemeChange={applyAndPersist}
-=======
->>>>>>> bilup/develop
                             />
                         </section>
                     ) : null}
@@ -188,56 +159,12 @@ const Settings = () => {
                         </section>
                     ) : null}
 
-<<<<<<< eea4f3f
-                    {activeSection === 'presence' ? (
-                        <section className={styles.card}>
-                            <h2>{t('mw.community.settings.presence', 'Presence')}</h2>
-                            {user && !presenceOk ? (
-                                <div className={styles.risk}>
-                                    {t('mw.community.settings.presenceMissingPermission1',
-                                        'Your current PineWarp Accounts login is missing the ')}
-                                    <strong>{'account:profile'}</strong>
-                                    {t('mw.community.settings.presenceMissingPermission2',
-                                        ' permission, so your editor activity cannot be shared. Log in again to grant it.')}
-                                    <div>
-                                        <button
-                                            className={styles.riskAction}
-                                            type="button"
-                                            onClick={reloginForPresence}
-                                        >
-                                            {t('mw.community.settings.loginAgain', 'Log in again')}
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : null}
-                            <div className={styles.settingRows}>
-                                {Object.entries(presence).filter(([key]) => presenceLabels[key])
-                                    .map(([key, enabled]) => (
-                                    <label
-                                        key={key}
-                                        className={styles.settingRow}
-                                    >
-                                        <span>{presenceLabels[key]}</span>
-                                        <input
-                                            className={styles.checkbox}
-                                            type="checkbox"
-                                            checked={enabled}
-                                            onChange={event => changePresence(key, event.target.checked)}
-                                        />
-                                    </label>
-                                ))}
-                            </div>
-                        </section>
-                    ) : null}
-
-=======
->>>>>>> bilup/develop
                     {activeSection === 'project-themes' ? (
                         <section className={styles.card}>
                             <h2>{t('mw.community.settings.projectThemes', 'Project themes')}</h2>
                             <p className={styles.lead}>
                                 {t('mw.community.settings.projectThemesLead',
-                                    'Some projects come with their own PineWarp theme. Choose when the player should switch to a project\'s theme automatically.')}
+                                    'Some projects come with their own Bilup theme. Choose when the player should switch to a project\'s theme automatically.')}
                             </p>
                             <label className={styles.field}>
                                 <span>{t('mw.community.settings.applyProjectThemesFor', 'Apply project themes for')}</span>
@@ -256,36 +183,6 @@ const Settings = () => {
                             </label>
                         </section>
                     ) : null}
-<<<<<<< eea4f3f
-
-                    {activeSection === 'identity' ? (
-                        <section className={styles.card}>
-                            <h2>{t('mw.community.settings.identity', 'Identity')}</h2>
-                            <label
-                                className={styles.field}
-                                htmlFor="username-override"
-                            >
-                                <span>{t('mw.community.settings.usernameOverride', 'Username override')}</span>
-                                <input
-                                    id="username-override"
-                                    className={styles.input}
-                                    type="text"
-                                    value={username}
-                                    onChange={event => changeUsername(event.target.value)}
-                                    placeholder={t('mw.community.settings.usernamePlaceholder', 'Use account username')}
-                                />
-                            </label>
-                        </section>
-                    ) : null}
-
-                    {!user && !desktopApp ? (
-                        <p className={styles.note}>
-                            {t('mw.community.settings.signInNote',
-                                'Sign in to sync your settings across devices through your PineWarp Accounts account.')}
-                        </p>
-                    ) : null}
-=======
->>>>>>> bilup/develop
                 </div>
             </div>
         </main>

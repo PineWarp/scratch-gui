@@ -1,18 +1,13 @@
 import BlockInstance from '../../lib/find-bar/BlockInstance';
-<<<<<<< eea4f3f
-=======
 import {
     renderWorkspaceBlockPreview,
     renderBlockTypePreview,
     beginPreviewBatch
 } from '../../lib/block-preview/previewRenderer.js';
->>>>>>> bilup/develop
 
 import Carousel from './Carousel';
 import {getReactInternalKey} from './dom-utils';
 
-<<<<<<< eea4f3f
-=======
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /**
@@ -44,7 +39,6 @@ const FALLBACK_DROPDOWN_WIDTH = 320;
 const RENDER_AHEAD = 240;
 
 
->>>>>>> bilup/develop
 // Opcode -> scratch-blocks message key remapping for blocks whose opcode has
 // underscores that the message table does not.
 const operatorMap = {
@@ -168,73 +162,23 @@ export default class Dropdown {
 
     addItem (proc, messagesList, colours) {
         const item = document.createElement('li');
-        item.innerText = proc.procCode;
         item.data = proc;
         item.displayName = this.translateProcCode(proc, messagesList);
-        const name = normalizeType(proc.procCode);
 
-        const colorIds = {
-            receive: 'events',
-            event: 'events',
-            define: 'more',
-            var: 'data',
-            VAR: 'data',
-            list: 'data-lists',
-            LIST: 'data-lists',
-            costume: 'looks',
-            sound: 'sounds',
-            block: 'more'
-        };
+        // Attach before anything is rendered: the block preview is measured with getBBox, which
+        // is not reliable for an SVG that is not in the document yet.
+        this.items.push(item);
+        this.el.appendChild(item);
 
-<<<<<<< eea4f3f
-        if (proc.cls === 'flag') {
-            item.className = 'sa-find-flag';
-        } else {
-            let colorId = colorIds[proc.cls];
-            if (!colorId) {
-                const code = proc.procCode.split('_', 1)[0];
-                if ([
-                    'motion',
-                    'control',
-                    'looks',
-                    'event',
-                    'sound',
-                    'sensing',
-                    'data',
-                    'pen',
-                    'extensions',
-                    'other'
-                ].includes(code)) {
-                    colorId = code;
-                    if (colorId === 'sound') colorId = 'sounds';
-                } else if (code === 'operator') {
-                    colorId = 'operators';
-                } else {
-                    colorId = 'more';
-                }
-            }
-            if (colorId === 'more') {
-                item.className = 'sa-block-color sa-block-color-more';
-                item.style.color = colours[name];
-            } else {
-                item.className = `sa-block-color sa-block-color-${colorId}`;
-            }
-        }
-=======
         // A row starts out as its plain text and is only turned into a real block once it is
         // actually on screen (see renderVisiblePreviews). Building a block costs far more than
         // writing a line of text, and a big project has many more rows than fit in the dropdown.
         this.applyTextRow(item, proc, colours);
->>>>>>> bilup/develop
 
-        this.items.push(item);
-        this.el.appendChild(item);
         return item;
     }
 
     /**
-<<<<<<< eea4f3f
-=======
      * Paints the plain text form of a row. This is what a row shows until it is turned into a
      * real block, and what it keeps when it can not be drawn as one.
      * @param {HTMLLIElement} item The row to paint.
@@ -479,7 +423,6 @@ export default class Dropdown {
     }
 
     /**
->>>>>>> bilup/develop
      * Resolve the translated name shown for a search result.
      * The translated block JSON is looked up by the raw opcode first and only then by the name
      * scratch-blocks messages use, so an extension block whose opcode merely looks like a core

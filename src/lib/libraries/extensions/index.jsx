@@ -105,177 +105,6 @@ export default [
     {
         name: (
             <FormattedMessage
-<<<<<<< eea4f3f
-                defaultMessage="PineWarp Accounts"
-                description="Name of the PineWarp Accounts extension"
-                id="tw.extension.rotur.name"
-            />
-        ),
-        extensionId: 'pinewarpAccounts',
-        iconURL: roturAccountIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Log in with PineWarp Accounts and read who the player is."
-                description="Description of the PineWarp Accounts extension"
-                id="tw.extension.rotur.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Economy"
-                description="Name of the PineWarp Accounts Economy extension"
-                id="tw.extension.roturEconomy.name"
-            />
-        ),
-        extensionId: 'pinewarpEconomy',
-        iconURL: roturEconomyIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Credits, transfers, and daily rewards."
-                description="Description of the PineWarp Accounts Economy extension"
-                id="tw.extension.roturEconomy.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Keys"
-                description="Name of the PineWarp Accounts Keys extension"
-                id="tw.extension.roturKeys.name"
-            />
-        ),
-        extensionId: 'pinewarpKeys',
-        iconURL: roturKeysIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Buy, sell, and check PineWarp Accounts keys."
-                description="Description of the PineWarp Accounts Keys extension"
-                id="tw.extension.roturKeys.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Status"
-                description="Name of the PineWarp Accounts Status extension"
-                id="tw.extension.roturStatus.name"
-            />
-        ),
-        extensionId: 'pinewarpStatus',
-        iconURL: roturStatusIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Read and set PineWarp Accounts status and presence."
-                description="Description of the PineWarp Accounts Status extension"
-                id="tw.extension.roturStatus.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Social"
-                description="Name of the PineWarp Accounts Social extension"
-                id="tw.extension.roturSocial.name"
-            />
-        ),
-        extensionId: 'pinewarpSocial',
-        iconURL: roturSocialIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Posts, follows, and friends on PineWarp Accounts."
-                description="Description of the PineWarp Accounts Social extension"
-                id="tw.extension.roturSocial.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Shop"
-                description="Name of the PineWarp Accounts Shop extension"
-                id="tw.extension.roturShop.name"
-            />
-        ),
-        extensionId: 'pinewarpShop',
-        iconURL: roturShopIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Items and cosmetics marketplace."
-                description="Description of the PineWarp Accounts Shop extension"
-                id="tw.extension.roturShop.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Groups"
-                description="Name of the PineWarp Accounts Groups extension"
-                id="tw.extension.roturGroups.name"
-            />
-        ),
-        extensionId: 'pinewarpGroups',
-        iconURL: roturGroupsIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Communities, roles, and group economy."
-                description="Description of the PineWarp Accounts Groups extension"
-                id="tw.extension.roturGroups.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-                defaultMessage="PineWarp Accounts Files"
-                description="Name of the PineWarp Accounts Files extension"
-                id="tw.extension.roturFiles.name"
-            />
-        ),
-        extensionId: 'pinewarpFiles',
-        iconURL: roturFilesIcon,
-        description: (
-            <FormattedMessage
-                defaultMessage="Read and manage your PineWarp Accounts file storage."
-                description="Description of the PineWarp Accounts Files extension"
-                id="tw.extension.roturFiles.description"
-            />
-        ),
-        incompatibleWithScratch: true,
-        tags: ['rotur'],
-        featured: true
-    },
-    {
-        name: (
-            <FormattedMessage
-=======
->>>>>>> bilup/develop
                 defaultMessage="Custom Extension"
                 description="Name of library item to load a custom extension from a remote source"
                 id="tw.customExtension.name"
@@ -631,7 +460,7 @@ export const galleryLoading = {
             }}
         />
     ),
-    href: 'https://extensions.pinewarp.org/',
+    href: 'https://extensions.bilup.org/',
     extensionId: 'gallery',
     iconURL: galleryIcon,
     description: (
@@ -642,7 +471,7 @@ export const galleryLoading = {
             id="tw.extensionGallery.loading"
         />
     ),
-    tags: ['tw', 'pinewarp', 'sharkpool', 'mistium', 'ae'],
+    tags: ['tw', 'bilup', 'sharkpool', 'mistium', 'ae'],
     featured: true
 };
 
@@ -657,26 +486,18 @@ export const galleryMore = {
             }}
         />
     ),
-    href: 'https://extensions.pinewarp.org/',
+    href: 'https://extensions.bilup.org/',
     extensionId: 'gallery',
     iconURL: galleryIcon,
     description: (
         <FormattedMessage
             // eslint-disable-next-line max-len
-<<<<<<< eea4f3f
-            defaultMessage="Including extensions from TurboWarp, Mistium, PineWarp Accounts, SharkPool, PineWarp, and AstraEditor."
-=======
             defaultMessage="Including extensions from TurboWarp, Mistium, SharkPool, Bilup, and AstraEditor."
->>>>>>> bilup/develop
             description="Appears after the extension list from the gallery was loaded successfully"
             id="tw.extensionGallery.more"
         />
     ),
-<<<<<<< eea4f3f
-    tags: ['tw', 'pinewarp', 'sharkpool', 'mistium', 'ae', 'rotur'],
-=======
     tags: ['tw', 'bilup', 'sharkpool', 'mistium', 'ae'],
->>>>>>> bilup/develop
     featured: true
 };
 
@@ -691,7 +512,7 @@ export const galleryError = {
             }}
         />
     ),
-    href: 'https://extensions.pinewarp.org/',
+    href: 'https://extensions.bilup.org/',
     extensionId: 'gallery',
     iconURL: galleryIcon,
     description: (
@@ -702,6 +523,6 @@ export const galleryError = {
             id="tw.extensionGallery.error"
         />
     ),
-    tags: ['tw', 'pinewarp', 'sharkpool', 'mistium', 'ae'],
+    tags: ['tw', 'bilup', 'sharkpool', 'mistium', 'ae'],
     featured: true
 };

@@ -4,12 +4,7 @@ import {Plus} from 'lucide-react';
 import {useUser} from '../UserContext.jsx';
 import api, {editorUrl} from '../api';
 import {fetchNotifications} from '../../lib/rotur/client.js';
-<<<<<<< eea4f3f
-
-import Avatar from './Avatar.jsx';
-=======
 import logo from '../assets/bilup-logo.svg';
->>>>>>> bilup/develop
 import setFaviconBadge from '../faviconBadge';
 import styles from './NavBar.module.css';
 
@@ -79,21 +74,12 @@ const NavBar = () => {
                     href={editorUrl()}
                     className={styles.brand}
                 >
-                    <span
+                    <img
                         className={styles.logo}
-<<<<<<< eea4f3f
-                        role="img"
-                        aria-label="PineWarp"
-                    >
-                        🍍
-                    </span>
-                </Link>
-=======
                         src={logo}
                         alt="Bilup"
                     />
                 </a>
->>>>>>> bilup/develop
 
                 <nav className={styles.links}>
                     <a

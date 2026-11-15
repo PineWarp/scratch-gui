@@ -1,12 +1,22 @@
+import {getItem as getStorageItem} from './utils/safe-storage.js';
+
+const storageKey = id => `mw:${id}`;
+
+const safeGetItem = key => {
+    try {
+        return getStorageItem(key);
+    } catch (err) {
+        return null;
+    }
+};
+
+// Static CSS presets for the simple toggles (square corners, hidden buttons, etc.).
 const APPEARANCE_SETTINGS = [
     {
         id: 'square-stage-corners',
-<<<<<<< eea4f3f
-=======
         // 注意：舞台根节点的 CSS Module 类名是 stage_stage_<hash>（见 src/components/stage/stage.css
         // 的 .stage），不是 stage_section。full-screen 时同一元素上会追加 stage_full-screen_<hash>，
         // 前缀匹配 stage_stage 依然命中，所以全屏也一起变方。
->>>>>>> bilup/develop
         css: '[class*="stage_stage"],[class*="stage_green-flag-overlay-wrapper"]{border-radius:0 !important;}'
     },
     {
@@ -28,33 +38,29 @@ const APPEARANCE_SETTINGS = [
         // 背包组件根节点标记见 backpack.jsx；类名兜底保留，旧代码把 backpack 误写成 uppack，
         // 且 [class^=] 只在类名恰好排第一时才命中，所以一直没生效。
         id: 'hide-backpack',
-<<<<<<< eea4f3f
-        css: '[class^="backpack_backpack-container"]{display:none;}'
-=======
         css: '[data-backpack-container],[class*="backpack_backpack-container"]{display:none !important;}'
->>>>>>> bilup/develop
     },
     {
         id: 'unclip-palette',
         default: true,
         css: '.injectionDiv:has(> .blocklyToolboxDiv:hover, > svg.blocklyFlyout:not(.sa-flyoutClose):hover)' +
             ' > svg.blocklyFlyout:not(.sa-flyoutClose){overflow:visible;}' +
-            '.injectionDiv > svg.blocklyFlyout:not(.sa-flyoutClose):hover{overflow:visible;}'
+            '.injectionDiv:has(> .blocklyToolboxDiv:hover, > svg.blocklyFlyout:not(.sa-flyoutClose):hover)' +
+            ' #blocklyBlockMenuClipRect{width:100000px;}'
     }
 ];
 
-const storageKey = id => `mw:${id}`;
+const elementId = id => `mw-appearance-${id}`;
 
-const getAppearanceSetting = id => {
+const defaultValue = id => {
     const setting = APPEARANCE_SETTINGS.find(s => s.id === id);
-    try {
-        return localStorage.getItem(storageKey(id)) === 'true';
-    } catch (err) {
-        return setting && setting.default ? setting.default : false;
-    }
+    return !!(setting && setting.default);
 };
 
-const elementId = id => `mw-appearance-${id}`;
+const getAppearanceSetting = id => {
+    const stored = safeGetItem(storageKey(id));
+    return stored === null ? defaultValue(id) : stored === 'true';
+};
 
 const applyAppearanceSetting = (id, enabled) => {
     const setting = APPEARANCE_SETTINGS.find(s => s.id === id);
@@ -80,6 +86,7 @@ const setAppearanceSetting = (id, enabled) => {
     applyAppearanceSetting(id, enabled);
 };
 
+// Apply all appearance settings on initial load.
 const initAppearanceSettings = () => {
     for (const setting of APPEARANCE_SETTINGS) {
         applyAppearanceSetting(setting.id, getAppearanceSetting(setting.id));

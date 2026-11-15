@@ -63,6 +63,7 @@ import TWFullScreenResizerHOC from '../lib/components/tw-fullscreen-resizer-hoc.
 import TWThemeManagerHOC from './tw-theme-manager-hoc.jsx';
 import {initialize as initializeShortcuts, updateShortcuts} from
     '../lib/shortcuts/event-router.js';
+import startFractchLiveReload from '../lib/fractch-live';
 import smartSave from '../lib/mw/smart-save.js';
 import {getItem as getStorageItem} from '../lib/utils/safe-storage.js';
 import {closeAllContextMenus, installGlobalContextMenuCloser} from '../lib/utils/close-context-menus.js';
@@ -89,8 +90,6 @@ class GUI extends React.Component {
             enableStageResize: getStorageItem('mw:enable-stage-resize', 'true') !== 'false'
         };
         this.handleStorageChange = this.handleStorageChange.bind(this);
-        this.fractchLiveReloadDispose = null;
-        this._unmounted = false;
     }
 
     componentDidMount () {
@@ -146,27 +145,13 @@ class GUI extends React.Component {
         // 监听localStorage变化
         window.addEventListener('storage', this.handleStorageChange);
 
-<<<<<<< eea4f3f
-        // Fractch live-reload pulls in the fractch parser + JSZip (~400 KB) and
-        // only does anything when the URL carries a ?live= parameter. Load it
-        // off the critical path; the dispose handle is stored when it lands.
-        import('../lib/fractch-live').then(({default: startFractchLiveReload}) => {
-            if (this._unmounted) return;
-            this.fractchLiveReloadDispose = startFractchLiveReload(this.props.vm);
-        }).catch(error => {
-            // eslint-disable-next-line no-console
-            console.warn('Fractch live reload unavailable:', error);
-        });
-=======
         // 点外部 / 右键别处 / Esc 统一关闭全站右键菜单
         this.disposeGlobalContextMenuCloser = installGlobalContextMenuCloser();
 
         this.fractchLiveReloadDispose = startFractchLiveReload(this.props.vm);
->>>>>>> bilup/develop
     }
 
     componentWillUnmount () {
-        this._unmounted = true;
         window.removeEventListener('storage', this.handleStorageChange);
         if (this.disposeGlobalContextMenuCloser) {
             this.disposeGlobalContextMenuCloser();
@@ -203,14 +188,14 @@ class GUI extends React.Component {
             // At this time the project view in www doesn't need to know when a project is unloaded
 
             // Log total loading time
-            if (window.PINEWARP_LOAD_START_TIME) {
-                const totalLoadTime = Date.now() - window.PINEWARP_LOAD_START_TIME;
-                console.log(`🚀 PineWarp project loaded in ${totalLoadTime}ms (${(totalLoadTime / 1000).toFixed(2)}s)`);
+            if (window.BILUP_LOAD_START_TIME) {
+                const totalLoadTime = Date.now() - window.BILUP_LOAD_START_TIME;
+                console.log(`🚀 Bilup project loaded in ${totalLoadTime}ms (${(totalLoadTime / 1000).toFixed(2)}s)`);
 
                 // Also use Performance API if available
                 if (window.performance && window.performance.mark && window.performance.measure) {
-                    window.performance.mark('pinewarp-load-end');
-                    window.performance.measure('pinewarp-total-load', 'pinewarp-load-start', 'pinewarp-load-end');
+                    window.performance.mark('bilup-load-end');
+                    window.performance.measure('bilup-total-load', 'bilup-load-start', 'bilup-load-end');
                 }
             }
 

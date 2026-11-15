@@ -107,7 +107,7 @@ const normalizeCustomExtension = (extension, source, index) => {
         extensionId: id,
         extensionURL: safeResolveURL(js, baseURL) ||
             safeResolveURL(extension.slug ? `${extension.slug}.js` : null, baseURL),
-        iconURL: image ? safeResolveURL(image, baseURL) : 'https://extensions.pinewarp.org/images/unknown.svg',
+        iconURL: image ? safeResolveURL(image, baseURL) : 'https://extensions.bilup.org/images/unknown.svg',
         tags: [source.id],
         source: source.id,
         credits: extension.credits || [],
@@ -254,12 +254,12 @@ const SOURCES = [
         localURL: 'tw-extensions://./generated-metadata/extensions-v0.json',
         // 主站不可用时的镜像代理地址（需自行部署反向代理）：
         // 代理服务器需将 /turbowarp/ 路径反向代理到 extensions.turbowarp.org
-        // 例如：https://extensions.pinewarp.org/turbowarp/generated-metadata/extensions-v0.json
+        // 例如：https://extensions.bilup.org/turbowarp/generated-metadata/extensions-v0.json
         // 应返回与 cloudURL 相同的 JSON 内容
         fallbackURL: '',
         fallbackBase: '',
         map: (data, useProxy = false) => {
-            const base = useProxy ? 'https://extensions.pinewarp.org/turbowarp' : 'https://extensions.turbowarp.org';
+            const base = useProxy ? 'https://extensions.bilup.org/turbowarp' : 'https://extensions.turbowarp.org';
             return data.extensions.map(extension => ({
                 name: extension.name,
                 nameTranslations: extension.nameTranslations || {},
@@ -408,8 +408,8 @@ const SOURCES = [
         }
     },
     {
-        name: 'pinewarp',
-        cloudURL: 'https://extensions.pinewarp.org/generated-metadata/extensions-v0.json',
+        name: 'bilup',
+        cloudURL: 'https://extensions.bilup.org/generated-metadata/extensions-v0.json',
         localURL: 'bl-extensions://./generated-metadata/extensions-v0.json',
         map: data => data.extensions.map(extension => ({
             name: extension.name,
@@ -417,10 +417,10 @@ const SOURCES = [
             description: extension.description,
             descriptionTranslations: extension.descriptionTranslations || {},
             extensionId: extension.id,
-            extensionURL: `https://extensions.pinewarp.org/${extension.slug}.js`,
-            iconURL: `https://extensions.pinewarp.org/${extension.image || 'images/unknown.svg'}`,
-            source: 'pinewarp',
-            tags: ['pinewarp'],
+            extensionURL: `https://extensions.bilup.org/${extension.slug}.js`,
+            iconURL: `https://extensions.bilup.org/${extension.image || 'images/unknown.svg'}`,
+            source: 'bilup',
+            tags: ['bilup'],
             credits: [
                 ...(extension.by || []),
                 ...(extension.original || [])
@@ -439,9 +439,9 @@ const SOURCES = [
                 }
                 return credit.name;
             }),
-            docsURI: extension.docs ? `https://extensions.pinewarp.org/${extension.slug}` : null,
+            docsURI: extension.docs ? `https://extensions.bilup.org/${extension.slug}` : null,
             samples: extension.samples ? extension.samples.map(sample => ({
-                href: `${process.env.ROOT}editor?project_url=https://extensions.pinewarp.org/samples/${encodeURIComponent(sample)}.sb3`,
+                href: `${process.env.ROOT}editor?project_url=https://extensions.bilup.org/samples/${encodeURIComponent(sample)}.sb3`,
                 text: sample
             })) : null,
             incompatibleWithScratch: true,
@@ -785,13 +785,9 @@ class ExtensionLibrary extends React.PureComponent {
             ['scratch', 'Scratch'],
             ['tw', 'TurboWarp'],
             ['mistium', 'Mistium'],
-<<<<<<< eea4f3f
-            ['rotur', 'PineWarp Accounts'],
-=======
->>>>>>> bilup/develop
             ['sharkpool', 'SharkPool'],
             ['ae', 'AstraEditor'],
-            ['pinewarp', 'PineWarp'],
+            ['bilup', 'Bilup'],
             ...this.state.customSources.map(source => [source.id, source.name])
         ];
         // 可删除（自定义）的标签 id 集合，用于侧边栏渲染删除按钮
