@@ -443,6 +443,10 @@ class AddonWindow {
     }
     
     updateMaximizeButton () {
+        // A maximized window cannot be dragged, so drop the "move" cursor.
+        if (this.headerElement) {
+            this.headerElement.style.cursor = this.isMaximized ? 'default' : 'move';
+        }
         if (this.maximizeBtn) {
             const svgIcon = this.isMaximized ?
                 `<svg width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -464,6 +468,9 @@ class AddonWindow {
             // Only primary button / primary touch; ignore control buttons
             if (e.button !== 0) return;
             if (e.target.closest('button')) return;
+            // A maximized window fills the screen and has nowhere to be moved to,
+            // so dragging is disabled until it is restored.
+            if (this.isMaximized) return;
 
             this.isDragging = true;
             this.dragPointerId = e.pointerId;

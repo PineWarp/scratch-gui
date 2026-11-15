@@ -14,60 +14,70 @@ const ACCENTS = [
         name: 'Red',
         accent: accentRed,
         description: 'Red accent color',
+        defaultMessage: 'Red',
         id: 'tw.accent.red'
     },
     {
         name: 'Orange',
         accent: accentOrange,
         description: 'Orange accent color',
+        defaultMessage: 'Orange',
         id: 'tw.accent.orange'
     },
     {
         name: 'Yellow',
         accent: accentYellow,
         description: 'Yellow accent color',
+        defaultMessage: 'Yellow',
         id: 'tw.accent.yellow'
     },
     {
         name: 'Green',
         accent: accentGreen,
         description: 'Green accent color',
+        defaultMessage: 'Green',
         id: 'tw.accent.green'
     },
     {
         name: 'Green Tea',
         accent: accentGreenTea,
         description: 'Green Tea accent color',
+        defaultMessage: 'Green Tea',
         id: 'tw.accent.green-tea'
     },
     {
         name: 'Pale Blue',
         accent: accentPaleBlue,
         description: 'Pale Blue accent color',
+        defaultMessage: 'Pale Blue',
         id: 'tw.accent.pale-blue'
     },
     {
         name: 'Blue',
         accent: accentBlue,
         description: 'Blue accent color',
+        defaultMessage: 'Blue',
         id: 'tw.accent.blue'
     },
     {
         name: 'Purple',
         accent: accentPurple,
         description: 'Purple accent color',
+        defaultMessage: 'Purple',
         id: 'tw.accent.purple'
     },
     {
         name: 'Eggplant',
         accent: accentEggplantPurple,
         description: 'Eggplant accent color',
+        defaultMessage: 'Eggplant',
         id: 'tw.accent.eggplant-purple'
     },
     {
         name: 'Pink',
         accent: accentPink,
         description: 'Pink accent color',
+        defaultMessage: 'Pink',
         id: 'tw.accent.pink'
     }
 ];

@@ -11,8 +11,10 @@ import {initStyleSettings} from '../mw-style-settings';
 import {initMenuBarLayout} from '../mw-menu-bar-layout';
 
 import {
+    setCloud,
     setUsername
 } from '../../reducers/tw';
+import {getDisableCloudVariables} from '../mw-editor-defaults.js';
 import {
     defaultProjectId,
     setProjectId
@@ -313,6 +315,10 @@ const TWStateManager = function (WrappedComponent) {
             initAppearanceSettings();
             initStyleSettings();
             initMenuBarLayout();
+
+            if (getDisableCloudVariables()) {
+                this.props.onSetCloud(false);
+            }
 
             if (urlParams.has('fps')) {
                 const fps = +urlParams.get('fps');
@@ -778,6 +784,7 @@ const TWStateManager = function (WrappedComponent) {
         reduxProjectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
         routingStyle: PropTypes.oneOf(Object.keys(routers)),
         username: PropTypes.string,
+        onSetCloud: PropTypes.func,
         vm: PropTypes.instanceOf(VM)
     };
     StateManagerComponent.defaultProps = {
@@ -806,6 +813,7 @@ const TWStateManager = function (WrappedComponent) {
         onSetIsPlayerOnly: isPlayerOnly => dispatch(setPlayer(isPlayerOnly)),
         onSetProjectId: projectId => dispatch(setProjectId(projectId)),
         onSetUsername: username => dispatch(setUsername(username)),
+        onSetCloud: cloud => dispatch(setCloud(cloud)),
         onSetCollaborationRoomId: roomId => dispatch(setCollaborationRoomId(roomId)),
         onOpenCollaborationModal: () => dispatch(openCollaborationModal())
     });

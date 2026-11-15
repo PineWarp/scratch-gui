@@ -37,17 +37,22 @@ class GradientUtils {
     }
 
     /**
-     * Convert hex color to RGBA
-     * @param {string} hex - Hex color string
+     * Convert a color to an RGBA-ish value with the given opacity.
+     *
+     * ⚠ 不要再用"substr 抠 6 位 hex"的老写法：调用方传进来的 primaryColor 文档写着
+     *   "hex, rgb, hsl, etc."，只要它不是 6 位 hex（#abc / #rrggbbaa / rgb() / hsl()），
+     *   老写法会算出 rgba(107, 9, NaN, 0.35) 这种非法值。而它生成的是
+     *   --looks-transparent / --looks-light-transparent 等 CSS 变量 ——
+     *   变量一旦非法，所有 var(--looks-transparent) 的地方（侧栏选中底框、
+     *   精灵选中光晕、find-bar 聚焦环……）都会静默变透明，表现为"状态色消失"。
+     * 用 color-mix 让浏览器解析颜色，任何合法颜色表达式都成立；
+     * 对 6 位 hex 来说结果与 rgba(r,g,b,a) 完全等价，不会改变既有观感。
+     * @param {string} color - 任意合法 CSS 颜色（hex / rgb() / hsl() / 具名色）
      * @param {number} opacity - Opacity value (0-1)
-     * @returns {string} RGBA color string
+     * @returns {string} color-mix 表达式
      */
-    static hexToRgba (hex, opacity = 1) {
-        const cleanHex = hex.replace('#', '');
-        const r = parseInt(cleanHex.substr(0, 2), 16);
-        const g = parseInt(cleanHex.substr(2, 2), 16);
-        const b = parseInt(cleanHex.substr(4, 2), 16);
-        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    static hexToRgba (color, opacity = 1) {
+        return `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`;
     }
 
     /**

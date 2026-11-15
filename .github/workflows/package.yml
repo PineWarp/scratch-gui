@@ -35,6 +35,12 @@ jobs:
       - name: Delete pnpm-lock.yaml
         run: rm -f pnpm-lock.yaml
 
+      # 依赖里有多处 github: 简写，npm/pnpm 会解析成 git+ssh://git@github.com/...，
+      # 而 runner 没有 SSH key，导致 clone 失败（Permission denied (publickey)）。
+      # 这里让 git 把 SSH 形式重写为 HTTPS（这些仓库都是公开库）。
+      - name: Use HTTPS for GitHub git dependencies
+        run: 'git config --global url."https://github.com/".insteadOf "git@github.com:"'
+
       - name: Regenerate pnpm-lock.yaml
         run: pnpm install --lockfile-only --ignore-scripts
 

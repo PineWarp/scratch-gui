@@ -1,4 +1,9 @@
-import {getDefaultAuthor, setDefaultAuthor} from './browser-git';
+// 注意：这里必须是 author-store，不能是 browser-git。
+// browser-git 会静态引入 isomorphic-git / lightning-fs / jszip / fractch，
+// 而本模块被「设置」窗口引用（作者名 / 邮箱 / 默认分支）。
+// 之前从 browser-git 取值，导致打开设置窗口就要额外下载整个 git 工具链
+// （打包后数百 KB），窗口首屏因此明显变慢。
+import {getDefaultAuthor, setDefaultAuthor} from './author-store.js';
 import {getItem as getStorageItem} from '../utils/safe-storage.js';
 
 const DEFAULT_BRANCH_KEY = 'mw:git-default-branch';

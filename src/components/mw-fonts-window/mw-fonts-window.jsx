@@ -142,6 +142,11 @@ class MWFontsWindow extends React.Component {
             this.refreshLocalFonts();
             fontManager.on('change', this.refreshLocalFonts);
         }
+        // Load the fonts that are currently visible so their previews actually
+        // render in the correct typeface. Previously they were only loaded when
+        // the user clicked one, so every preview fell back to the default font.
+        this.loadPreviewFonts(this.getGoogleDisplayFonts());
+        this.loadHistoryPreviewFonts();
     }
 
     componentWillUnmount () {
@@ -150,6 +155,32 @@ class MWFontsWindow extends React.Component {
         if (fontManager) fontManager.off('change', this.refreshLocalFonts);
         if (this.searchTimeout) clearTimeout(this.searchTimeout);
     }
+
+    loadPreviewFonts = families => {
+        const loaded = new Set();
+        for (const font of families) {
+            const family = getFontFamily(font);
+            if (!family || loaded.has(family)) continue;
+            loaded.add(family);
+            // Failures (offline, unavailable font) just keep the fallback font.
+            loadGoogleFont(family).catch(() => {});
+        }
+    };
+
+    // Recent fonts may come from a previous session, where only the selected
+    // font is loaded by the theme. Load the Google ones so their previews work.
+    loadHistoryPreviewFonts = async () => {
+        const history = (this.props.theme.fonts.history || []).filter(Boolean);
+        await Promise.all(history.map(async family => {
+            try {
+                if (await isGoogleFont(family)) {
+                    await loadGoogleFont(family);
+                }
+            } catch {
+                // Not a Google font or offline; keep the fallback font.
+            }
+        }));
+    };
 
     getFontManager = () => this.props.vm?.runtime?.fontManager || null;
 
@@ -207,7 +238,14 @@ class MWFontsWindow extends React.Component {
         this.setState({loading: true});
         try {
             const results = await searchGoogleFonts(trimmed);
+<<<<<<< eea4f3f
             if (this._mounted) this.setState({searchResults: results});
+=======
+            if (this._isMounted) {
+                this.setState({searchResults: results});
+                this.loadPreviewFonts(results);
+            }
+>>>>>>> bilup/develop
         } catch (err) {
             console.error('Error searching Google Fonts:', err);
             if (this._mounted) this.setState({searchResults: []});

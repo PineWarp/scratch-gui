@@ -18,13 +18,15 @@ class FrostedGlassPage extends React.Component {
         bindAll(this, [
             'handleEnabledChange',
             'handleBlurRadiusChange',
-            'handleOpacityChange'
+            'handleOpacityChange',
+            'handleThemeBoostChange'
         ]);
         const saved = getFrostedGlassSettings();
         this.state = {
             enabled: saved ? saved.enabled : DEFAULT_SETTINGS.enabled,
             blurRadius: saved ? saved.blurRadius : DEFAULT_SETTINGS.blurRadius,
-            opacity: saved ? saved.opacity : DEFAULT_SETTINGS.opacity
+            opacity: saved ? saved.opacity : DEFAULT_SETTINGS.opacity,
+            themeBoost: saved && saved.themeBoost != null ? saved.themeBoost : DEFAULT_SETTINGS.themeBoost
         };
     }
 
@@ -56,8 +58,15 @@ class FrostedGlassPage extends React.Component {
         }
     }
 
+    handleThemeBoostChange (e) {
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value) && value >= 0.10 && value <= 0.55) {
+            this.applyAndSave({themeBoost: value});
+        }
+    }
+
     render () {
-        const {enabled, blurRadius, opacity} = this.state;
+        const {enabled, blurRadius, opacity, themeBoost} = this.state;
 
         return (
             <Box className={styles.body}>
@@ -133,6 +142,30 @@ class FrostedGlassPage extends React.Component {
                             <div className={styles.rangeLabels}>
                                 <span>0.05</span>
                                 <span>0.35</span>
+                            </div>
+                        </div>
+
+                        {/* Dark/light difference slider */}
+                        <div className={styles.setting}>
+                            <div className={styles.label}>
+                                <FormattedMessage
+                                    id="bl.frostedGlass.themeBoost"
+                                    defaultMessage="Dark/Light Difference"
+                                />
+                                <span className={styles.settingValue}>{themeBoost.toFixed(2)}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0.10"
+                                max="0.55"
+                                step="0.05"
+                                value={themeBoost}
+                                onChange={this.handleThemeBoostChange}
+                                className={styles.gcSlider}
+                            />
+                            <div className={styles.rangeLabels}>
+                                <span>0.10</span>
+                                <span>0.55</span>
                             </div>
                         </div>
                     </React.Fragment>

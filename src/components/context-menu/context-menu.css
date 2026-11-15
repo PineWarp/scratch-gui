@@ -2,6 +2,24 @@
 @import "../../css/units.css";
 @import "../../css/z-index.css";
 
+/* react-contextmenu 的显隐完全靠库写在 <nav> 上的 inline style：
+   隐藏时只有 opacity: 0 + pointer-events: none，元素本身仍然留在 DOM 里。
+   本仓库没有引入库的样式表（v2.9.4 也没有附带 css），所以这里必须补上
+   “隐藏即 display: none”，否则每个使用点都会常驻一个 position: fixed 的
+   <nav>：
+     - 角色列表 / 造型 / 声音 / 监视器：各自一个
+     - 背包：**每一项**一个（见 components/backpack/backpack-item.jsx）
+   叠加 bl-frosted-glass 给 nav.react-contextmenu 加的 backdrop-filter 后，
+   每个隐藏菜单都是一个独立的合成层，舞台每帧重绘都要为它们各重算一次背景
+   模糊 —— 背包项超过一屏（约 10 个）后编辑器整体掉帧，原因就在这里。
+
+   --visible 类只在 state.isVisible 为 true 时出现（库 helpers.js 的
+   cssClasses.menuVisible），用它把隐藏态彻底移出渲染树，显示态行为不变
+   （库在 --visible 出现后还会用 rAF 校正位置与 opacity，不受影响）。 */
+:global(nav.react-contextmenu):global(:not(.react-contextmenu--visible)) {
+    display: none;
+}
+
 .context-menu {
     min-width: 130px;
     padding: 5px 0; /* The white strip at the top and bottom of the menu */

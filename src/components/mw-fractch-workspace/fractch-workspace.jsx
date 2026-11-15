@@ -44,6 +44,7 @@ import {
 import {parseConflicts, resolutionText} from '../../lib/git/conflicts';
 import {sanitize} from '../../lib/git/fractch-tree';
 import {setCodeSearch} from '../../lib/find-bar/api';
+import {CLOSE_CONTEXT_MENUS_EVENT} from '../../lib/utils/close-context-menus';
 
 import FractchTerminal, {CODE_FONT} from './fractch-terminal.jsx';
 
@@ -599,6 +600,7 @@ const ContextMenu = ({colors, menu, onClose, onCreate, onDelete, onRename}) => {
     return (
         <div
             className={styles.contextMenu}
+            data-mw-context-menu="true"
             role="presentation"
             style={{
                 'left': menu.x,
@@ -1610,6 +1612,12 @@ const FractchWorkspace = ({exitRequested, onExit, theme, vm}) => {
             window.removeEventListener('blur', close);
         };
     }, [menu]);
+
+    useEffect(() => {
+        const close = () => setMenu(null);
+        window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, close);
+        return () => window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, close);
+    }, []);
 
     const handleCompleteMerge = useCallback(async () => {
         setWorking(true);

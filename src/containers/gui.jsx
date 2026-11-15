@@ -65,8 +65,11 @@ import {initialize as initializeShortcuts, updateShortcuts} from
     '../lib/shortcuts/event-router.js';
 import smartSave from '../lib/mw/smart-save.js';
 import {getItem as getStorageItem} from '../lib/utils/safe-storage.js';
+import {closeAllContextMenus, installGlobalContextMenuCloser} from '../lib/utils/close-context-menus.js';
 
 const {RequestMetadata, setMetadata, unsetMetadata} = storage.scratchFetch;
+
+const isProjectLoading = props => !!(props.fetchingProject || props.isLoading || props.loadingStateVisible);
 
 const setProjectIdMetadata = projectId => {
     // If project ID is '0' or zero, it's not a real project ID. In that case, remove the project ID metadata.
@@ -143,6 +146,7 @@ class GUI extends React.Component {
         // 监听localStorage变化
         window.addEventListener('storage', this.handleStorageChange);
 
+<<<<<<< eea4f3f
         // Fractch live-reload pulls in the fractch parser + JSZip (~400 KB) and
         // only does anything when the URL carries a ?live= parameter. Load it
         // off the critical path; the dispose handle is stored when it lands.
@@ -153,11 +157,21 @@ class GUI extends React.Component {
             // eslint-disable-next-line no-console
             console.warn('Fractch live reload unavailable:', error);
         });
+=======
+        // 点外部 / 右键别处 / Esc 统一关闭全站右键菜单
+        this.disposeGlobalContextMenuCloser = installGlobalContextMenuCloser();
+
+        this.fractchLiveReloadDispose = startFractchLiveReload(this.props.vm);
+>>>>>>> bilup/develop
     }
 
     componentWillUnmount () {
         this._unmounted = true;
         window.removeEventListener('storage', this.handleStorageChange);
+        if (this.disposeGlobalContextMenuCloser) {
+            this.disposeGlobalContextMenuCloser();
+            this.disposeGlobalContextMenuCloser = null;
+        }
         if (this.fractchLiveReloadDispose) {
             this.fractchLiveReloadDispose();
             this.fractchLiveReloadDispose = null;
@@ -174,6 +188,10 @@ class GUI extends React.Component {
     }
 
     componentDidUpdate (prevProps) {
+        // 进入加载作品阶段时，统一关闭所有右键菜单
+        if (!isProjectLoading(prevProps) && isProjectLoading(this.props)) {
+            closeAllContextMenus();
+        }
         if (this.props.projectId !== prevProps.projectId) {
             if (this.props.projectId !== null) {
                 this.props.onUpdateProjectId(this.props.projectId);
@@ -252,7 +270,7 @@ class GUI extends React.Component {
         } = this.props;
         return (
             <GUIComponent
-                loading={fetchingProject || isLoading || loadingStateVisible}
+                loading={isProjectLoading(this.props)}
                 enableStageResize={this.state.enableStageResize}
                 {...componentProps}
             >

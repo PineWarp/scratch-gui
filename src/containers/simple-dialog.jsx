@@ -6,7 +6,23 @@ import SimpleDialog from '../components/simple-dialog/simple-dialog.jsx';
 import {closeModal} from '../reducers/modals';
 
 class SimpleDialogContainer extends React.PureComponent {
+    constructor (props) {
+        super(props);
+        this.settled = false;
+    }
+
+    componentDidUpdate (previousProps) {
+        const previousConfig = previousProps.simpleDialogConfig;
+        const currentConfig = this.props.simpleDialogConfig;
+        if (currentConfig && currentConfig !== previousConfig) {
+            this.settled = false;
+            if (previousConfig && previousConfig.onCancel) previousConfig.onCancel();
+        }
+    }
+
     handleOk = value => {
+        if (this.settled) return;
+        this.settled = true;
         const {onOk, simpleDialogConfig} = this.props;
         this.props.onRequestClose();
         if (onOk) {
@@ -18,6 +34,8 @@ class SimpleDialogContainer extends React.PureComponent {
     };
 
     handleCancel = () => {
+        if (this.settled) return;
+        this.settled = true;
         const {onCancel, simpleDialogConfig} = this.props;
         this.props.onRequestClose();
         if (onCancel) {

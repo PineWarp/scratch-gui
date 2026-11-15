@@ -14,7 +14,6 @@ import Credits from './pages/Credits.jsx';
 import Project from './pages/Project.jsx';
 import Profile from './pages/Profile.jsx';
 import Followers from './pages/Followers.jsx';
-import Settings from './pages/Settings.jsx';
 import MyStuff from './pages/MyStuff.jsx';
 import ManageProject from './pages/ManageProject.jsx';
 import Wallet from './pages/Wallet.jsx';
@@ -25,7 +24,6 @@ import Admin from './pages/Admin.jsx';
 
 const ROUTE_TITLES = [
     ['/explore', 'mw.community.route.explore', 'Explore'],
-    ['/settings', 'mw.community.route.settings', 'Settings'],
     ['/mystuff/project/', 'mw.community.route.manageProject', 'Manage project'],
     ['/mystuff', 'mw.community.route.myStuff', 'My Stuff'],
     ['/wallet', 'mw.community.route.wallet', 'Wallet'],
@@ -67,7 +65,6 @@ const App = () => {
                     <Route path="/project/:id" element={<Project />} />
                     <Route path="/users/:name" element={<Profile />} />
                     <Route path="/users/:name/followers" element={<Followers />} />
-                    <Route path="/settings" element={<Settings />} />
                     <Route path="/mystuff" element={<MyStuff />} />
                     <Route path="/mystuff/project/:id" element={<ManageProject />} />
                     <Route path="/wallet" element={<Wallet />} />

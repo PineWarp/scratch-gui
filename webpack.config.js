@@ -46,11 +46,26 @@ const base = {
         // allows ROUTING_STYLE=wildcard to work properly
         historyApiFallback: {
             rewrites: [
+<<<<<<< eea4f3f
                 {from: /^\/\d+\/?$/, to: '/index.html'},
                 {from: /^\/\d+\/fullscreen\/?$/, to: '/fullscreen.html'},
                 {from: /^\/\d+\/editor\/?$/, to: '/editor.html'},
                 {from: /^\/\d+\/embed\/?$/, to: '/embed.html'},
                 {from: /^\/addons\/?$/, to: '/addons.html'}
+=======
+                // 根路径默认进入编辑器
+                {from: /^\/?$/, to: '/editor.html'},
+                {from: /^\/editor\/?$/, to: '/editor.html'},
+                {from: /^\/fullscreen\/?$/, to: '/fullscreen.html'},
+                {from: /^\/embed\/?$/, to: '/embed.html'},
+                {from: /^\/addons\/?$/, to: '/addons.html'},
+                {from: /^\/\d+\/?$/, to: '/player.html'},
+                {from: /^\/\d+\/fullscreen\/?$/, to: '/fullscreen.html'},
+                {from: /^\/\d+\/editor\/?$/, to: '/editor.html'},
+                {from: /^\/\d+\/embed\/?$/, to: '/embed.html'}
+                // anything else (/explore, /project/*, /users/*, /settings)
+                // falls through to index.html (the community app)
+>>>>>>> bilup/develop
             ]
         }
     },
@@ -147,7 +162,17 @@ const base = {
                 /node_modules[\\/]domutils/,
                 /node_modules[\\/]react-markdown/,
                 /node_modules[\\/]isomorphic-git/,
+<<<<<<< eea4f3f
                 /node_modules[\\/]fractch/,
+=======
+                // `@isomorphic-git/lightning-fs`（Git 面板的 IndexedDB 文件系统）的
+                // package main 指向未编译的 src/，源码用了 ?? / ?. 等新语法。
+                // 上面的 `isomorphic-git` 正则匹配不到带 @ 作用域的这一段
+                // （pnpm 下实际路径为
+                //  node_modules/.pnpm/@isomorphic-git+lightning-fs@*/node_modules/@isomorphic-git/lightning-fs/），
+                // 必须单独放行，否则 webpack 报 "no loaders are configured to process this file"。
+                /node_modules[\\/]@isomorphic-git[\\/]/,
+>>>>>>> bilup/develop
                 /node_modules[\\/]just-bash/,
                 /node_modules[\\/]monaco-editor/,
                 /node_modules[\\/]rotur-sdk/,
@@ -538,6 +563,7 @@ module.exports = [
                 title: `Addon Settings - ${APP_NAME}`,
                 ...htmlWebpackPluginCommon
             }),
+<<<<<<< eea4f3f
             new HtmlWebpackPlugin({
                 chunks: ['credits'],
                 template: 'src/playground/simple.ejs',
@@ -545,17 +571,30 @@ module.exports = [
                 title: `${APP_NAME} Credits`,
                 ...htmlWebpackPluginCommon
             }),
+=======
+>>>>>>> bilup/develop
             new CopyWebpackPlugin({
                 patterns: [
                     {
                         from: 'static',
                         to: '',
+<<<<<<< eea4f3f
                         // static/rw.html is a 20 MB QQ chat-log export that was left behind
                         // in the source tree. Nothing under src/ links to it any more (the
                         // old footer link was removed), so copying it only bloats the deploy
                         // by 20 MB. The source file itself is left untouched on disk.
                         globOptions: {
                             ignore: ['**/rw.html']
+=======
+                        // 只保留页面所需资源；测试/说明类 HTML 页面不构建进产物
+                        globOptions: {
+                            ignore: [
+                                '**/embedtest.html',
+                                '**/embedtestbad.html',
+                                '**/sb3-postmessage-test.html',
+                                '**/privacy.html'
+                            ]
+>>>>>>> bilup/develop
                         }
                     }
                 ]

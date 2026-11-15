@@ -13,6 +13,12 @@ const ICONS = {
     list: svg('<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/>' +
         '<line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/>' +
         '<line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>'),
+    eye: svg('<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>' +
+        '<circle cx="12" cy="12" r="3"/>'),
+    eyeOff: svg('<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.7 10.7 0 0 1-1.444 2.49"/>' +
+        '<path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/>' +
+        '<path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/>' +
+        '<path d="m2 2 20 20"/>'),
     cloud: svg('<path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/>' +
         '<path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>'),
     all: svg('<path d="M11 7h8"/><path d="M3 7h2"/><path d="M7 11h2"/><path d="M3 11h2"/>' +
@@ -120,21 +126,105 @@ export default async function ({addon, console, msg}) {
                 }
             }, msg('too-big'));
 
+            // 舞台监视器开关：等价于积木面板里变量/列表旁的复选框
+            this.monitorButton = el('button', {
+                class: 'mw-vm-monitor',
+                type: 'button',
+                html: ICONS.eyeOff
+            });
+
             const badge = this.isCloud || this.type === 'list' ?
                 el('span', {class: 'mw-vm-badge', dataset: {badge: this.kind}},
                     msg(this.isCloud ? 'cloud-badge' : 'list-badge')) :
                 null;
 
             this.row = el('div', {class: 'mw-vm-row', dataset: {kind: this.kind}},
+                this.monitorButton,
                 el('span', {class: 'mw-vm-icon', html: ICONS[this.kind]}),
                 el('div', {class: 'mw-vm-name-cell'}, this.nameInput, badge),
                 el('div', {class: 'mw-vm-value-cell'}, this.valueInput, this.bigButton)
             );
 
             this.bindEvents();
+            this.refreshMonitor();
+        }
+
+        // --- 舞台监视器 ---------------------------------------------------
+        getMonitorRecord () {
+            try {
+                const state = vm.runtime.getMonitorState();
+                if (!state) return null;
+                if (typeof state.get === 'function') return state.get(this.id) || null;
+                return state[this.id] || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        isMonitored () {
+            const record = this.getMonitorRecord();
+            if (record) return !!record.visible;
+            const monitorBlocks = vm.runtime.monitorBlocks;
+            const block = monitorBlocks && monitorBlocks.getBlock(this.id);
+            return !!(block && block.isMonitored);
+        }
+
+        refreshMonitor () {
+            if (!this.monitorButton) return;
+            const monitored = this.isMonitored();
+            const label = msg(monitored ? 'hide-monitor' : 'show-monitor', {name: this.name});
+            this.monitorButton.dataset.monitored = monitored ? 'true' : 'false';
+            this.monitorButton.innerHTML = monitored ? ICONS.eye : ICONS.eyeOff;
+            this.monitorButton.setAttribute('aria-pressed', monitored ? 'true' : 'false');
+            this.monitorButton.setAttribute('aria-label', label);
+            this.monitorButton.title = label;
+        }
+
+        toggleMonitor () {
+            const next = !this.isMonitored();
+            const runtime = vm.runtime;
+            try {
+                // 变量/列表的 monitor block id 就是变量 id，改 checkbox 等价于勾选积木面板里的复选框
+                runtime.monitorBlocks.changeBlock({
+                    id: this.id,
+                    element: 'checkbox',
+                    value: next
+                }, runtime);
+                // 没有被任何脚本引用的变量在监视器工作区里可能没有对应积木，
+                // changeBlock 会静默失效，这里直接补一条监视器记录。
+                if (next && !this.isMonitored()) {
+                    const stage = runtime.getTargetForStage();
+                    const isGlobal = !!(stage && stage.variables && stage.variables[this.id]);
+                    runtime.requestAddMonitor({
+                        id: this.id,
+                        targetId: isGlobal ? null : this.target.id,
+                        spriteName: isGlobal ? null : this.target.getName(),
+                        opcode: this.type === 'list' ? 'data_listcontents' : 'data_variable',
+                        params: this.type === 'list' ? {LIST: this.name} : {VARIABLE: this.name},
+                        visible: true,
+                        mode: this.type === 'list' ? 'list' : 'default',
+                        value: '',
+                        x: 5,
+                        y: 5,
+                        width: 0,
+                        height: 0,
+                        sliderMin: 0,
+                        sliderMax: 100,
+                        isDiscrete: true
+                    });
+                }
+            } catch (e) {
+                console.error('variable-manager: toggle monitor failed', e);
+            }
+            this.refreshMonitor();
         }
 
         bindEvents () {
+            this.monitorButton.addEventListener('click', e => {
+                e.preventDefault();
+                this.toggleMonitor();
+            });
+
             this.nameInput.addEventListener('focus', () => {
                 freeze(true);
                 this.nameInput.select();
@@ -203,6 +293,7 @@ export default async function ({addon, console, msg}) {
                 if (workspace) workspace.renameVariableById(this.id, next);
                 this.name = next;
                 this.nameInput.value = next;
+                this.refreshMonitor();
             } catch (e) {
                 console.error('variable-manager: rename failed', e);
                 this.flashError(this.nameInput);
@@ -442,7 +533,10 @@ export default async function ({addon, console, msg}) {
 
     const refreshValues = () => {
         if (!win || !win.isVisible || frozen) return;
-        rows.forEach(row => row.refreshValue(false));
+        rows.forEach(row => {
+            row.refreshValue(false);
+            row.refreshMonitor();
+        });
     };
 
     const scheduleUpdate = () => {
@@ -504,6 +598,12 @@ export default async function ({addon, console, msg}) {
     };
 
     const toggle = () => {
+        // 新版 Variable Manager（containers/tw-variable-manager.jsx）已经接管这个入口，
+        // 舞台按钮与快捷键都走它；这里只保留旧窗口作为兜底。
+        if (typeof window.__mistwarpVariableManagerToggle === 'function') {
+            window.__mistwarpVariableManagerToggle();
+            return;
+        }
         if (win && win.isVisible) hide();
         else show();
     };
@@ -547,10 +647,8 @@ export default async function ({addon, console, msg}) {
     };
 
     const onGlobalKey = e => {
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'V' || e.key === 'v') && !e.repeat) {
-            e.preventDefault();
-            toggle();
-        } else if (win && win.isVisible && (e.ctrlKey || e.metaKey) && e.key === 'f') {
+        // Ctrl+Shift+V 由新版 Variable Manager 统一处理，这里只管窗口内的搜索
+        if (win && win.isVisible && (e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
             searchInput.focus();
             searchInput.select();

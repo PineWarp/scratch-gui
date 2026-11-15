@@ -132,12 +132,101 @@ class TWGitModal extends React.Component {
         });
     }
 
+<<<<<<< eea4f3f
     async refresh () {
         this.setState({busy: true, busyMessage: this.props.intl.formatMessage({
             defaultMessage: 'Refreshing…',
             description: 'Message shown when refreshing Git repository status',
             id: 'mw.gitModal.refreshing'
         }), busyProgress: null, error: null});
+=======
+    // Backend progress text wins when the operation reports any (push/pull
+    // download the pack and know how far along they are).
+    busyMessageFor (op) {
+        if (op.message) return op.message;
+        const key = BUSY_MESSAGES[op.name];
+        if (!key) return null;
+        const descriptor = messages[key];
+        if (op.name === 'push') {
+            return this.props.intl.formatMessage(descriptor, {
+                branch: this.state.pushBranch || this.state.currentBranch || '',
+                remote: this.state.pushRemote
+            });
+        }
+        return this.props.intl.formatMessage(descriptor);
+    }
+
+    // Typed errors carry a stable code, so intent survives even when the text
+    // is unhelpful. NOT_FRACTCH is the one case with a UI-owned message (the
+    // user-facing copy lives next to the other clone strings).
+    localizeStoreError (error) {
+        if (!error) return null;
+        if (error.code === GIT_ERROR_CODES.NOT_FRACTCH) {
+            return this.props.intl.formatMessage(messages.notFractch);
+        }
+        return translateGitError(error.message || '', error.raw || '');
+    }
+
+    // Transient green confirmation at the top of the panel ("Pulled latest
+    // changes", "Config exported"…). Auto-clears after a few seconds.
+    showSuccess (message) {
+        if (this._successTimer) {
+            clearTimeout(this._successTimer);
+        }
+        this.setState({success: message});
+        this._successTimer = setTimeout(() => {
+            this._successTimer = null;
+            this.setState({success: null});
+        }, 3200);
+    }
+
+    // Every git failure ends up here, whichever surface started it: an app-wide
+    // toast in the bottom-right corner marked ❌️. Errors used to be a red bar
+    // inside this window only, which is why the File menu "reported" the same
+    // failure with a browser alert (see A3 in the test checklist).
+    //
+    // `_lastErrorShown` folds repeats: the store notifies on every state change
+    // and a single failure would otherwise re-appear on each of them.
+    showError (message) {
+        if (!message || this._lastErrorShown === message) return;
+        this._lastErrorShown = message;
+        if (typeof this.props.showToast === 'function') {
+            this.props.showToast(message, 'error', 'bottom-right');
+        }
+    }
+
+    // Client-side validation feedback (empty commit message, missing remote…).
+    // Kept apart from the store's error so a subsequent operation — which clears
+    // the store error — also clears this one.
+    setLocalError (message) {
+        // `_lastErrorShown` only guards the store-driven path, where one failure
+        // is re-reported on every state sync. A validation error is a fresh user
+        // action, and this window has no inline error bar left, so re-clicking
+        // the same button with the same mistake has to toast again — the de-dupe
+        // used to swallow it and the second click got no feedback at all.
+        this._lastErrorShown = null;
+        this.setState({localError: message, error: message});
+        this.showError(message);
+    }
+
+    handleProjectChanged () {
+        if (this._pollTimer) clearTimeout(this._pollTimer);
+        this._pollTimer = setTimeout(() => {
+            this._pollTimer = null;
+            this.refresh();
+        }, 700);
+    }
+
+    // Resync the working tree from the project. Runs inside the ops lock, so a
+    // refresh can never interleave with a commit/pull that is writing the
+    // repository.
+    //
+    // `history` is opt-in on purpose: walking the commit graph is the expensive
+    // part (it walks every ref), and every history-changing operation already
+    // refreshes it from inside ops. A plain edit-driven resync must not rebuild
+    // it, or typing in the editor would re-walk the whole graph every 700ms.
+    async refresh ({history = false} = {}) {
+>>>>>>> bilup/develop
         try {
             const status = await getRepoStatus(this.props.vm);
             // If a repo exists but has no commits, treat it like uninitialized

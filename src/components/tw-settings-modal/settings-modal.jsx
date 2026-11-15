@@ -11,46 +11,56 @@ import BufferedInputHOC from '../forms/buffered-input-hoc.jsx';
 import DocumentationLink from '../tw-documentation-link/documentation-link.jsx';
 import {
     ModalSidebar,
+    ModalSidebarCollapsibleGroup,
     ModalSidebarContent,
-    ModalSidebarGroup,
-    ModalSidebarGroupHeader,
     ModalSidebarItem,
     ModalSidebarLayout
 } from '../modal-sidebar/modal-sidebar.jsx';
 import styles from './settings-modal.css';
 import helpIcon from './help-icon.svg';
 import {APP_NAME} from '../../lib/constants/brand.js';
+import isScratchDesktop from '../../lib/utils/isScratchDesktop';
 import {STYLE_GROUPS} from '../../lib/mw-style-settings';
 import StylePreview from './style-preview.jsx';
 import MenuBarLayoutSetting from './menu-bar-layout.jsx';
 import MenuBarFeatureSettings from './menu-bar-settings.jsx';
-import {LanguagePage, ThemePage, WallpaperPage, FontsPage} from './appearance-pages.jsx';
-import LoadingScreenPage from './loading-screen-page.jsx';
-import FrostedGlassPage from './frosted-glass-page.jsx';
-import ShortcutManager from '../shortcut-manager/shortcut-manager.jsx';
-import {takeSettingsModalInitialView} from '../../lib/settings/modal-view.js';
-import isScratchDesktop from '../../lib/utils/isScratchDesktop.js';
 
-import {Settings, Zap, Blocks, Palette, PanelTop, Bug, GitBranch, Variable, Radio,
-    Globe, SunMoon, Wallpaper, Type, Monitor, Keyboard, ChevronLeft,
-    Hourglass, Droplets} from 'lucide-react';
-import {connect} from 'react-redux';
+// ---------------------------------------------------------------------------
+// 页面级按需加载
+//
+// 设置窗口默认停在「常规」页，但下面这几页各自带着一整套编辑器：主题页挂着
+// 自定义主题编辑器 + 渐变生成器，字体页带着字体管理窗口，快捷键页带着整张
+// 快捷键表。它们原先在模块顶部静态引入，于是「打开设置」必须先下载并解析
+// 这些代码——哪怕你从来不点这些页。
+//
+// 改成 React.lazy 之后，窗口首屏只需要「常规」页的代码；某一页第一次被点开
+// 时才拉取它自己的分块。渲染位置见下方 SettingsRouter 外的 Suspense。
+// ---------------------------------------------------------------------------
+const lazyNamedPage = (loader, name) => React.lazy(() => (
+    loader().then(module => ({default: module[name]}))
+));
+
+const LanguagePage = lazyNamedPage(() => import('./appearance-pages.jsx'), 'LanguagePage');
+const ThemePage = lazyNamedPage(() => import('./appearance-pages.jsx'), 'ThemePage');
+const WallpaperPage = lazyNamedPage(() => import('./appearance-pages.jsx'), 'WallpaperPage');
+const FontsPage = lazyNamedPage(() => import('./appearance-pages.jsx'), 'FontsPage');
+const ColorThemePage = lazyNamedPage(() => import('./color-theme-page.jsx'), 'ColorThemePage');
+const CustomThemesPage = React.lazy(() => import('./custom-themes-page.jsx'));
+const VersionControlPage = React.lazy(() => import('./pages/version-control-page.jsx'));
+const AutosavePage = React.lazy(() => import('./pages/autosave-page.jsx'));
+const VariableManagerPage = React.lazy(() => import('./pages/variable-manager-page.jsx'));
+const DesktopPage = React.lazy(() => import('./pages/desktop-page.jsx'));
+const LoadingScreenPage = React.lazy(() => import('./loading-screen-page.jsx'));
+const FrostedGlassPage = React.lazy(() => import('./frosted-glass-page.jsx'));
+const ShortcutManager = React.lazy(() => import('../shortcut-manager/shortcut-manager.jsx'));
+import {takeSettingsModalInitialView} from '../../lib/settings/modal-view.js';
+import {getSettingsSidebarGroups} from './settings-navigation.js';
+import {searchSettingsPages} from './settings-search.js';
+
+import {ChevronLeft, Search} from 'lucide-react';
 
 import {DEFINITIONS as DEBUGGER_SETTINGS, getSetting as getDebuggerSetting,
     setSetting as setDebuggerSetting} from '../../lib/debugger/settings.js';
-import {DEFINITIONS as VARIABLE_MANAGER_SETTINGS, getSetting as getVariableManagerSetting,
-    setSetting as setVariableManagerSetting} from '../../lib/variable-manager/settings.js';
-import {
-    getAuthorName, getAuthorEmail, setAuthorName, setAuthorEmail,
-    getDefaultBranch, setDefaultBranch
-} from '../../lib/git/config.js';
-import {
-    getRoturSettings,
-    setRoturSetting,
-    formatActivityTitle,
-    formatActivityStatus
-} from '../../lib/rotur/settings.js';
-import {readActivityGrants, writeActivityGrants} from '../../lib/rotur/extension-bridge.js';
 
 const BufferedInput = BufferedInputHOC(Input);
 
@@ -69,6 +79,16 @@ const messages = defineMessages({
         defaultMessage: 'Settings sections',
         description: 'Aria label for the settings sidebar',
         id: 'mw.settings.ariaLabel'
+    },
+    search: {
+        defaultMessage: 'Search settings',
+        description: 'Placeholder for the search box at the top of the settings window sidebar',
+        id: 'mw.settingsModal.search'
+    },
+    noResults: {
+        defaultMessage: 'No settings match',
+        description: 'Shown in the settings window sidebar when a search finds nothing',
+        id: 'mw.settingsModal.noResults'
     },
     desktopSystemDefault: {
         defaultMessage: 'System default',
@@ -162,22 +182,6 @@ const messages = defineMessages({
         defaultMessage: 'Variable Manager',
         id: 'mw.settings.variableManagerHeader'
     },
-    headerRotur: {
-        defaultMessage: 'Rotur',
-        id: 'mw.settings.roturHeader'
-    },
-    activitySharingAsk: {
-        defaultMessage: 'Ask each project',
-        id: 'mw.settings.rotur.activitySharing.ask'
-    },
-    activitySharingAll: {
-        defaultMessage: 'Always allow',
-        id: 'mw.settings.rotur.activitySharing.all'
-    },
-    activitySharingOff: {
-        defaultMessage: 'Never',
-        id: 'mw.settings.rotur.activitySharing.off'
-    },
     cloudServerPlaceholder: {
         defaultMessage: 'ws://localhost:8000',
         id: 'mw.settings.cloudServerPlaceholder'
@@ -244,7 +248,7 @@ class UnwrappedSetting extends React.Component {
         return (
             <div
                 className={classNames(styles.setting, {
-                    [styles.active]: this.props.active
+                    [styles.active]: active
                 })}
             >
                 <div className={styles.label}>
@@ -389,6 +393,19 @@ const settingDefinitions = {
         },
         slug: 'disable-compiler'
     },
+    disableCloudVariables: {
+        label: {
+            defaultMessage: 'Disable Cloud Variables',
+            description: 'Disable Cloud Variables setting',
+            id: 'mw.settingsModal.disableCloudVariables'
+        },
+        help: {
+            // eslint-disable-next-line max-len
+            defaultMessage: 'Disables cloud variables by default. Projects keep their cloud variables, but they will not connect until this setting is turned off.',
+            description: 'Disable Cloud Variables help',
+            id: 'mw.settingsModal.disableCloudVariablesHelp'
+        }
+    },
     warpTimer: {
         label: {
             defaultMessage: 'Warp Timer',
@@ -467,6 +484,7 @@ const settingDefinitions = {
             id: 'mw.settingsModal.scriptLazyLoadingHelp'
         }
     },
+<<<<<<< eea4f3f
     skipAssetLoading: {
         label: {
             defaultMessage: 'Ignore Costumes When Loading Projects',
@@ -479,6 +497,21 @@ const settingDefinitions = {
                 'invisible until their costumes arrive.',
             description: 'Ignore Costumes When Loading Projects setting help',
             id: 'mw.settingsModal.skipAssetLoadingHelp'
+=======
+    embedGitOnSave: {
+        label: {
+            defaultMessage: 'Embed Git Repository on Save',
+            description: 'Include the git repository in files saved to the computer',
+            id: 'mw.settingsModal.embedGitOnSave'
+        },
+        help: {
+            defaultMessage: 'Packs the git repository (the fractch tree and .git) into the ' +
+                '.sb3 when you save to your computer. Leave this off to save a plain project ' +
+                'file: saving then streams straight to disk instead of buffering the whole ' +
+                'archive, and opening the file back will not import a repository.',
+            description: 'Embed Git Repository on Save setting help',
+            id: 'mw.settingsModal.embedGitOnSaveHelp'
+>>>>>>> bilup/develop
         }
     },
     squareStageCorners: {
@@ -601,6 +634,15 @@ const createBooleanSetting = (key, definition) => {
     return SettingComponent;
 };
 
+// 这里传进来的文案有两种形态：
+//   1. defineMessages 的描述符 `{id, defaultMessage}`（settings-modal 自己的 settingDefinitions）；
+//   2. 只有 id 字符串（lib/debugger/settings.js 的 DEFINITIONS 就是纯 id）。
+// 第 2 种没有英文兜底文案，某个语种缺条目时 formatMessage 会把 id 原样吐到界面上，
+// 表现就是「设置项标题显示成一串 mw.xxx」。所以下面统一收敛成描述符再格式化。
+const toMessageDescriptor = message => (
+    typeof message === 'string' ? {id: message, defaultMessage: message} : message
+);
+
 class DebuggerBooleanSetting extends React.Component {
     constructor (props) {
         super(props);
@@ -614,8 +656,8 @@ class DebuggerBooleanSetting extends React.Component {
     }
     render () {
         const {intl, label, help} = this.props;
-        const translatedLabel = intl.formatMessage({id: label, defaultMessage: label});
-        const translatedHelp = help ? intl.formatMessage({id: help, defaultMessage: help}) : undefined;
+        const translatedLabel = intl.formatMessage(toMessageDescriptor(label));
+        const translatedHelp = help ? intl.formatMessage(toMessageDescriptor(help)) : null;
         return (
             <BooleanSetting
                 value={this.state.value}
@@ -629,8 +671,14 @@ class DebuggerBooleanSetting extends React.Component {
 
 DebuggerBooleanSetting.propTypes = {
     settingId: PropTypes.string.isRequired,
-    label: PropTypes.string.isRequired,
-    help: PropTypes.string,
+    label: PropTypes.oneOfType([
+        PropTypes.string,
+        PropTypes.shape({id: PropTypes.string.isRequired})
+    ]).isRequired,
+    help: PropTypes.oneOfType([
+        PropTypes.string,
+        PropTypes.shape({id: PropTypes.string.isRequired})
+    ]),
     intl: intlShape.isRequired
 };
 
@@ -645,7 +693,11 @@ const RealLayerIndexes = createBooleanSetting('RealLayerIndexes', settingDefinit
 const EnableStageResize = createBooleanSetting('EnableStageResize', settingDefinitions.enableStageResize);
 const WindowAnimation = createBooleanSetting('WindowAnimation', settingDefinitions.windowAnimation);
 const ScriptLazyLoading = createBooleanSetting('ScriptLazyLoading', settingDefinitions.scriptLazyLoading);
+<<<<<<< eea4f3f
 const SkipAssetLoading = createBooleanSetting('SkipAssetLoading', settingDefinitions.skipAssetLoading);
+=======
+const EmbedGitOnSave = createBooleanSetting('EmbedGitOnSave', settingDefinitions.embedGitOnSave);
+>>>>>>> bilup/develop
 const SquareStageCorners = createBooleanSetting('SquareStageCorners', settingDefinitions.squareStageCorners);
 const HideDeleteButton = createBooleanSetting('HideDeleteButton', settingDefinitions.hideDeleteButton);
 const HideExtensionButton = createBooleanSetting('HideExtensionButton', settingDefinitions.hideExtensionButton);
@@ -653,6 +705,7 @@ const HideBackpack = createBooleanSetting('HideBackpack', settingDefinitions.hid
 const HideOperatorArrows = createBooleanSetting('HideOperatorArrows', settingDefinitions.hideOperatorArrows);
 const UnclipPalette = createBooleanSetting('UnclipPalette', settingDefinitions.unclipPalette);
 const VanillaPalette = createBooleanSetting('VanillaPalette', settingDefinitions.vanillaPalette);
+const DisableCloudVariables = createBooleanSetting('DisableCloudVariables', settingDefinitions.disableCloudVariables);
 
 const DisableCompiler = props => (
     <BooleanSetting
@@ -933,32 +986,33 @@ CustomStageSize.propTypes = {
 const CloudVariableServer = props => {
     const {intl} = props;
     return (
-    <Setting
-        primary={
-            <div className={classNames(styles.label, styles['cloud-variable-server'])}>
+        <Setting
+            primary={
+                <div className={classNames(styles.label, styles['cloud-variable-server'])}>
+                    <FormattedMessage
+                        defaultMessage="Cloud Variable Server"
+                        description="Cloud Variable Server setting"
+                        id="tw.settingsModal.cloudVariableServer"
+                    />
+                    <BufferedInput
+                        value={props.cloudVariableServer}
+                        onSubmit={props.onCloudVariableServerChange}
+                        className={styles['cloud-variable-server-input']}
+                        type="text"
+                        placeholder={intl.formatMessage(messages.cloudServerPlaceholder)}
+                    />
+                </div>
+            }
+            help={
                 <FormattedMessage
-                    defaultMessage="Cloud Variable Server"
-                    description="Cloud Variable Server setting"
-                    id="tw.settingsModal.cloudVariableServer"
+                    // eslint-disable-next-line max-len
+                    defaultMessage="Changes the server used for cloud variables. The URL must start with ws:// or wss://."
+                    description="Cloud Variable Server setting help"
+                    id="tw.settingsModal.cloudVariableServerHelp"
                 />
-                <BufferedInput
-                    value={props.cloudVariableServer}
-                    onSubmit={props.onCloudVariableServerChange}
-                    className={styles['cloud-variable-server-input']}
-                    type="text"
-                    placeholder={intl.formatMessage(messages.cloudServerPlaceholder)}
-                />
-            </div>
-        }
-        help={
-            <FormattedMessage
-                // eslint-disable-next-line max-len
-                defaultMessage="Changes the server used for cloud variables. The URL must start with ws:// or wss://."
-                description="Cloud Variable Server setting help"
-                id="tw.settingsModal.cloudVariableServerHelp"
-            />
-        }
-    />);
+            }
+        />
+    );
 };
 
 CloudVariableServer.propTypes = {
@@ -1028,6 +1082,16 @@ StoreProjectOptions.propTypes = {
     onStoreThemeInProjectChange: PropTypes.func
 };
 
+// 按需加载的页面在首次点击时需要一帧到几十毫秒去取分块。
+// 这里给一个极轻的占位（纯 CSS 转圈），避免侧边栏旁边整块空白。
+const PageLoadingFallback = () => (
+    <Box className={styles.body}>
+        <div className={styles.pageLoading}>
+            <span className={styles.pageLoadingSpinner} />
+        </div>
+    </Box>
+);
+
 const pageConfigurations = {
     general: {
         sections: [
@@ -1095,6 +1159,14 @@ const pageConfigurations = {
                             value: props.disableCompiler,
                             onChange: props.onDisableCompilerChange
                         })
+                    },
+                    {
+                        component: DisableCloudVariables,
+                        props: props => ({
+                            value: props.disableCloudVariables,
+                            onChange: props.onDisableCloudVariablesChange
+                        }),
+                        condition: () => !isScratchDesktop()
                     }
                 ]
             },
@@ -1136,16 +1208,16 @@ const pageConfigurations = {
                         component: DebuggerBooleanSetting,
                         props: () => ({
                             settingId: 'stage_pause_button',
-                            label: settingDefinitions.showPauseButton.label.id,
-                            help: settingDefinitions.showPauseButton.help.id
+                            label: settingDefinitions.showPauseButton.label,
+                            help: settingDefinitions.showPauseButton.help
                         })
                     },
                     {
                         component: DebuggerBooleanSetting,
                         props: () => ({
                             settingId: 'stage_step_button',
-                            label: settingDefinitions.showStepButton.label.id,
-                            help: settingDefinitions.showStepButton.help.id
+                            label: settingDefinitions.showStepButton.label,
+                            help: settingDefinitions.showStepButton.help
                         })
                     },
                     {
@@ -1269,22 +1341,6 @@ const pageConfigurations = {
                         })
                     }
                 ]
-            },
-            {
-                headerMessage: 'headerAutosave',
-                settings: [
-                    {
-                        component: MenuBarFeatureSettings,
-                        props: () => ({
-                            ids: [
-                                'autosave_enabled',
-                                'autosave_interval',
-                                'autosave_notifications',
-                                'autosave_only_when_changed'
-                            ]
-                        })
-                    }
-                ]
             }
         ]
     },
@@ -1336,10 +1392,17 @@ const pageConfigurations = {
                         })
                     },
                     {
+<<<<<<< eea4f3f
                         component: SkipAssetLoading,
                         props: props => ({
                             value: props.skipAssetLoading,
                             onChange: props.onSkipAssetLoadingChange
+=======
+                        component: EmbedGitOnSave,
+                        props: props => ({
+                            value: props.embedGitOnSave,
+                            onChange: props.onEmbedGitOnSaveChange
+>>>>>>> bilup/develop
                         })
                     }
                 ]
@@ -1457,6 +1520,7 @@ UnwrappedDebuggerPage.propTypes = {
 
 const DebuggerPage = injectIntl(UnwrappedDebuggerPage);
 
+<<<<<<< eea4f3f
 const TextSetting = ({label, help, value, onSubmit, placeholder}) => (
     <div className={styles.setting}>
         <div className={styles.textSettingLabel}>{label}</div>
@@ -2085,6 +2149,8 @@ class DesktopPage extends React.Component {
     }
 }
 
+=======
+>>>>>>> bilup/develop
 const SettingsRouter = ({view, ...handlers}) => {
     switch (view) {
     case 'general':
@@ -2094,6 +2160,12 @@ const SettingsRouter = ({view, ...handlers}) => {
     case 'shortcuts':
         return <ShortcutManager />;
     case 'theme':
+        return <ColorThemePage />;
+    case 'customThemes':
+        return <CustomThemesPage {...handlers} />;
+    case 'appearance':
+        return <StylesPage {...handlers} />;
+    case 'blocks':
         return <ThemePage />;
     case 'wallpaper':
         return <WallpaperPage />;
@@ -2107,16 +2179,14 @@ const SettingsRouter = ({view, ...handlers}) => {
         return <DebuggerPage {...handlers} />;
     case 'versionControl':
         return <VersionControlPage {...handlers} />;
+    case 'autosave':
+        return <AutosavePage {...handlers} />;
     case 'variableManager':
         return <VariableManagerPage {...handlers} />;
     case 'editor':
         return <EditorPage {...handlers} />;
-    case 'styles':
-        return <StylesPage {...handlers} />;
     case 'menuBar':
         return <MenuBarPage {...handlers} />;
-    case 'rotur':
-        return <RoturPage {...handlers} />;
     case 'desktop':
         return <DesktopPage {...handlers} />;
     case 'experimental':
@@ -2137,14 +2207,15 @@ class SettingsModalComponent extends React.Component {
         bindAll(this, [
             'handleNavigate',
             'handleStoreProjectOptions',
-            'handleToggleGroup',
+            'handleSearchChange',
+            'handleSearchKeyDown',
             'handleMobileBack'
         ]);
 
         this.state = {
             currentView: takeSettingsModalInitialView() || 'general',
-            collapsedGroups: {},
-            mobileView: 'list'
+            mobileView: 'list',
+            searchQuery: ''
         };
     }
 
@@ -2152,17 +2223,26 @@ class SettingsModalComponent extends React.Component {
         this.setState({currentView: category, mobileView: 'content'});
     }
 
-    handleMobileBack () {
-        this.setState({mobileView: 'list'});
+    handleSearchChange (e) {
+        this.setState({searchQuery: e.target.value});
     }
 
-    handleToggleGroup (groupId) {
-        this.setState(prevState => ({
-            collapsedGroups: {
-                ...prevState.collapsedGroups,
-                [groupId]: !prevState.collapsedGroups[groupId]
-            }
-        }));
+    handleSearchKeyDown (e) {
+        if (e.key !== 'Enter') return;
+        const sidebarGroups = getSettingsSidebarGroups(
+            this.props.intl,
+            typeof window.EditorPreload !== 'undefined'
+        );
+        const pages = sidebarGroups.reduce((all, group) => all.concat(group.items), []);
+        const [firstResult] = searchSettingsPages(pages, this.state.searchQuery);
+        if (firstResult) {
+            e.preventDefault();
+            this.handleNavigate(firstResult.id);
+        }
+    }
+
+    handleMobileBack () {
+        this.setState({mobileView: 'list'});
     }
 
     handleStoreProjectOptions () {
@@ -2173,6 +2253,7 @@ class SettingsModalComponent extends React.Component {
         const {intl} = this.props;
         const {currentView} = this.state;
 
+<<<<<<< eea4f3f
         const sidebarGroups = [
             {
                 id: 'general',
@@ -2305,6 +2386,15 @@ class SettingsModalComponent extends React.Component {
                 ]
             });
         }
+=======
+        const sidebarGroups = getSettingsSidebarGroups(
+            intl,
+            typeof window.EditorPreload !== 'undefined'
+        );
+        const pages = sidebarGroups.reduce((all, group) => all.concat(group.items), []);
+        const searchResults = this.state.searchQuery.trim() ?
+            searchSettingsPages(pages, this.state.searchQuery) : null;
+>>>>>>> bilup/develop
 
         return (
             <Modal
@@ -2318,30 +2408,59 @@ class SettingsModalComponent extends React.Component {
                 <ModalSidebarLayout mobileView={this.state.mobileView}>
                     <ModalSidebar
                         ariaLabel={intl.formatMessage(messages.settingsSectionsAria)}
+                        header={
+                            <div className={styles.sidebarSearch}>
+                                <Search
+                                    aria-hidden="true"
+                                    className={styles.sidebarSearchIcon}
+                                    size={15}
+                                />
+                                <input
+                                    aria-label={intl.formatMessage(messages.search)}
+                                    className={styles.sidebarSearchInput}
+                                    placeholder={intl.formatMessage(messages.search)}
+                                    type="search"
+                                    value={this.state.searchQuery}
+                                    onChange={this.handleSearchChange}
+                                    onKeyDown={this.handleSearchKeyDown}
+                                />
+                            </div>
+                        }
                         width="wide"
                     >
-                        {sidebarGroups.map(group => {
-                            const collapsed = !!this.state.collapsedGroups[group.id];
-                            return (
-                                <ModalSidebarGroup key={group.id}>
-                                    <ModalSidebarGroupHeader
-                                        collapsible
-                                        collapsed={collapsed}
-                                        label={group.label}
-                                        onClick={() => this.handleToggleGroup(group.id)}
+                        {searchResults ? (
+                            searchResults.length > 0 ? searchResults.map(result => (
+                                <ModalSidebarItem
+                                    key={result.id}
+                                    icon={result.icon}
+                                    label={result.label}
+                                    selected={currentView === result.id}
+                                    onClick={() => this.handleNavigate(result.id)}
+                                />
+                            )) : (
+                                <p
+                                    className={styles.sidebarNoResults}
+                                    role="status"
+                                >
+                                    {intl.formatMessage(messages.noResults)}
+                                </p>
+                            )
+                        ) : sidebarGroups.map(group => (
+                            <ModalSidebarCollapsibleGroup
+                                key={group.id}
+                                label={group.label}
+                            >
+                                {group.items.map(cat => (
+                                    <ModalSidebarItem
+                                        key={cat.id}
+                                        icon={cat.icon}
+                                        label={cat.label}
+                                        selected={currentView === cat.id}
+                                        onClick={() => this.handleNavigate(cat.id)}
                                     />
-                                    {!collapsed && group.items.map(cat => (
-                                        <ModalSidebarItem
-                                            key={cat.id}
-                                            icon={cat.icon}
-                                            label={cat.label}
-                                            selected={currentView === cat.id}
-                                            onClick={() => this.handleNavigate(cat.id)}
-                                        />
-                                    ))}
-                                </ModalSidebarGroup>
-                            );
-                        })}
+                                ))}
+                            </ModalSidebarCollapsibleGroup>
+                        ))}
                     </ModalSidebar>
                     <ModalSidebarContent className={styles.contentArea}>
                         <button
@@ -2355,11 +2474,13 @@ class SettingsModalComponent extends React.Component {
                                 id="mw.settingsModal.back"
                             />
                         </button>
-                        <SettingsRouter
-                            view={currentView}
-                            {...this.props}
-                            onStoreProjectOptions={this.handleStoreProjectOptions}
-                        />
+                        <React.Suspense fallback={<PageLoadingFallback />}>
+                            <SettingsRouter
+                                view={currentView}
+                                {...this.props}
+                                onStoreProjectOptions={this.handleStoreProjectOptions}
+                            />
+                        </React.Suspense>
                     </ModalSidebarContent>
                 </ModalSidebarLayout>
             </Modal>
@@ -2388,6 +2509,8 @@ SettingsModalComponent.propTypes = {
     onWarpTimerChange: PropTypes.func,
     disableCompiler: PropTypes.bool,
     onDisableCompilerChange: PropTypes.func,
+    disableCloudVariables: PropTypes.bool,
+    onDisableCloudVariablesChange: PropTypes.func,
     caseSensitiveLists: PropTypes.bool,
     onCaseSensitiveListsChange: PropTypes.func,
     realLayerIndexes: PropTypes.bool,
@@ -2432,8 +2555,13 @@ SettingsModalComponent.propTypes = {
     onWindowAnimationChange: PropTypes.func,
     scriptLazyLoading: PropTypes.bool,
     onScriptLazyLoadingChange: PropTypes.func,
+<<<<<<< eea4f3f
     skipAssetLoading: PropTypes.bool,
     onSkipAssetLoadingChange: PropTypes.func
+=======
+    embedGitOnSave: PropTypes.bool,
+    onEmbedGitOnSaveChange: PropTypes.func
+>>>>>>> bilup/develop
 };
 
 export default injectIntl(SettingsModalComponent);

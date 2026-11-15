@@ -324,6 +324,13 @@ const patchVisibleWorkspaceStacks = ({vm, liveTarget, sourceTarget, blocks, comm
     const ScratchBlocks = window.ScratchBlocks;
     const workspace = getVisibleWorkspace();
     if (!ScratchBlocks || !ScratchBlocks.Xml || !workspace) return false;
+    // The deferred (lazy) loader keeps the scripts it has not rendered as
+    // descriptions read from the block map that was just replaced, and tracks
+    // the rendered ones by the blocks it created. Patching the DOM in place
+    // would leave that bookkeeping pointing at the old blocks, so the old
+    // versions would be materialized again later and mixed into the patched
+    // project. Rebuild the whole workspace from the new VM state instead.
+    if (typeof workspace.getDeferredScripts === 'function') return false;
 
     try {
         withBlocklyEventsDisabled(ScratchBlocks, () => {

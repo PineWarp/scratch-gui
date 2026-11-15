@@ -8,6 +8,8 @@ import {
 import AddonHooks from '../../addons/hooks';
 import {applyThemeFonts} from '../themes/fonts';
 import './global-styles.css';
+// 右键菜单入场动画（由「开启窗口动画」开关统一控制）
+import '../bl-menu-animation.css';
 
 const BLOCK_COLOR_NAMES = [
     // Corresponds to the name of the object in blockColors

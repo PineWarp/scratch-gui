@@ -32,29 +32,18 @@ import {Theme} from '../themes';
 import {CustomTheme} from '../themes/custom-themes.js';
 import {BLOCKS_TAB_INDEX} from '../../reducers/editor-tab';
 
-// Debounce utility: coalesces rapid calls into a single execution at the end
-// of the burst, with an optional leading-edge call.
-const debounce = (fn, delay) => {
-    let timer = null;
-    let leading = true;
-    return (...args) => {
-        if (leading) {
-            leading = false;
-            fn(...args);
-        }
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-            leading = true;
-            fn(...args);
-        }, delay);
-    };
-};
-
 // Throttle utility: runs immediately on the first call, then guarantees at
 // least one execution every `delay` ms even when calls arrive continuously at
-// a higher rate (leading + trailing). Unlike the leading+trailing debounce
-// above, a sustained stream of calls can never starve execution, so it is the
-// right tool for per-frame sources such as MONITORS_UPDATE.
+// a higher rate (leading + trailing).
+//
+// Both per-frame sources this HOC forwards (TARGETS_UPDATE and MONITORS_UPDATE)
+// arrive as a sustained stream while a project runs. A leading+trailing
+// *debounce* must not be used for them: every incoming event resets its timer,
+// so a continuous stream never reaches the trailing edge and nothing is
+// dispatched until the stream stops. That starves the UI -- the sprite pane
+// would not follow a sprite switch until the project was paused, and on-screen
+// variable values would not refresh during a run. A throttle always flushes
+// within `delay` ms, so the latest state lands even while events keep coming.
 const throttle = (fn, delay) => {
     let lastRun = 0;
     let timer = null;
@@ -482,31 +471,39 @@ const vmListenerHOC = function (WrappedComponent) {
         username: state.session && state.session.session && state.session.session.user ?
             state.session.session.user.username : state.scratchGui.tw ? state.scratchGui.tw.username : ''
     });
-    let debouncedMonitorsUpdate = null;
-        let debouncedTargetsUpdate = null;
-        const mapDispatchToProps = dispatch => ({
-            onTargetsUpdate: (() => {
-                if (!debouncedTargetsUpdate) {
-                    debouncedTargetsUpdate = debounce(data => {
-                        dispatch(updateTargets(data.targetList, data.editingTarget));
-                    }, 50);
-                }
-                return debouncedTargetsUpdate;
-            })(),
+    // TARGETS_UPDATE and MONITORS_UPDATE both arrive every frame while a
+    // project runs (any sprite moving, changing size/direction/costume, or any
+    // monitored variable changing). Dispatching each one verbatim would
+    // re-render the whole editor 60 times a second, so both are limited to at
+    // most one dispatch per 50 ms. They use `throttle`, not `debounce`: while
+    // the stream is continuous a debounce never fires (see the utility above),
+    // which is what made the sprite pane ignore sprite switches until the
+    // project was paused.
+    let throttledMonitorsUpdate = null;
+    let throttledTargetsUpdate = null;
+    const mapDispatchToProps = dispatch => ({
+        onTargetsUpdate: (() => {
+            if (!throttledTargetsUpdate) {
+                throttledTargetsUpdate = throttle(data => {
+                    // `data.targetList` is a lazy getter on the VM's event
+                    // object, so it serializes the targets when this call
+                    // actually runs rather than when the event was emitted.
+                    dispatch(updateTargets(data.targetList, data.editingTarget));
+                }, 50);
+            }
+            return throttledTargetsUpdate;
+        })(),
         // Monitors update every frame while the VM is running. For large
         // projects with many monitors this can easily overwhelm the React
         // render cycle on low-end devices. Throttle to at most one dispatch
-        // per 50 ms so the UI stays responsive. (Throttle, not debounce: a
-        // leading+trailing debounce would let a continuous per-frame stream
-        // reset its timer forever and never dispatch until the stream stops,
-        // so on-screen variable/list values would not refresh during a run.)
+        // per 50 ms so the UI stays responsive.
         onMonitorsUpdate: (() => {
-            if (!debouncedMonitorsUpdate) {
-                debouncedMonitorsUpdate = throttle(monitorList => {
+            if (!throttledMonitorsUpdate) {
+                throttledMonitorsUpdate = throttle(monitorList => {
                     dispatch(updateMonitors(monitorList));
                 }, 50);
             }
-            return debouncedMonitorsUpdate;
+            return throttledMonitorsUpdate;
         })(),
         onBlockDragUpdate: areBlocksOverGui => {
             dispatch(updateBlockDrag(areBlocksOverGui));

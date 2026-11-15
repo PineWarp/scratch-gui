@@ -44,6 +44,7 @@ const Footer = () => (
                             id="mw.community.footer.editor"
                         />
                     </a>
+<<<<<<< eea4f3f
                     <Link to="/mystuff">
                         <FormattedMessage
                             defaultMessage="My stuff"
@@ -88,6 +89,8 @@ const Footer = () => (
                             id="mw.community.footer.reportBug"
                         />
                     </a>
+=======
+>>>>>>> bilup/develop
                 </div>
                 <div className={styles.column}>
                     <span className={styles.columnTitle}>
@@ -106,6 +109,7 @@ const Footer = () => (
                         <Github size={14} />
                         GitHub
                     </a>
+<<<<<<< eea4f3f
                     <a
                         href="https://accounts.pinewarp.org"
                         target="_blank"
@@ -117,6 +121,8 @@ const Footer = () => (
                             id="mw.community.footer.accounts"
                         />
                     </a>
+=======
+>>>>>>> bilup/develop
                     <Link to="/credits">
                         <FormattedMessage
                             defaultMessage="Credits"

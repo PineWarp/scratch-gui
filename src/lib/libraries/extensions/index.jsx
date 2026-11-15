@@ -50,14 +50,6 @@ import gdxforConnectionIconURL from './gdxfor/gdxfor-illustration.svg';
 import gdxforConnectionSmallIconURL from './gdxfor/gdxfor-small.svg';
 
 import twIcon from './tw/tw.svg';
-import roturAccountIcon from './rotur/account.png';
-import roturEconomyIcon from './rotur/economy.png';
-import roturKeysIcon from './rotur/keys.png';
-import roturStatusIcon from './rotur/status.png';
-import roturSocialIcon from './rotur/social.png';
-import roturShopIcon from './rotur/shop.png';
-import roturGroupsIcon from './rotur/groups.png';
-import roturFilesIcon from './rotur/files.png';
 import patchingIcon from './patching/patching.png';
 import customExtensionIcon from './custom/custom.svg';
 import customURLIcon from './custom/customURL.svg';
@@ -113,6 +105,7 @@ export default [
     {
         name: (
             <FormattedMessage
+<<<<<<< eea4f3f
                 defaultMessage="PineWarp Accounts"
                 description="Name of the PineWarp Accounts extension"
                 id="tw.extension.rotur.name"
@@ -281,6 +274,8 @@ export default [
     {
         name: (
             <FormattedMessage
+=======
+>>>>>>> bilup/develop
                 defaultMessage="Custom Extension"
                 description="Name of library item to load a custom extension from a remote source"
                 id="tw.customExtension.name"
@@ -668,12 +663,20 @@ export const galleryMore = {
     description: (
         <FormattedMessage
             // eslint-disable-next-line max-len
+<<<<<<< eea4f3f
             defaultMessage="Including extensions from TurboWarp, Mistium, PineWarp Accounts, SharkPool, PineWarp, and AstraEditor."
+=======
+            defaultMessage="Including extensions from TurboWarp, Mistium, SharkPool, Bilup, and AstraEditor."
+>>>>>>> bilup/develop
             description="Appears after the extension list from the gallery was loaded successfully"
             id="tw.extensionGallery.more"
         />
     ),
+<<<<<<< eea4f3f
     tags: ['tw', 'pinewarp', 'sharkpool', 'mistium', 'ae', 'rotur'],
+=======
+    tags: ['tw', 'bilup', 'sharkpool', 'mistium', 'ae'],
+>>>>>>> bilup/develop
     featured: true
 };
 

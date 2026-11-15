@@ -169,6 +169,16 @@ const setZoneOrder = (zoneId, order) => {
     window.dispatchEvent(new Event(CHANGE_EVENT));
 };
 
+const moveMenuItem = (order, id, direction) => {
+    const currentIndex = order.indexOf(id);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= order.length) return order.slice();
+    const nextOrder = order.slice();
+    nextOrder.splice(currentIndex, 1);
+    nextOrder.splice(nextIndex, 0, id);
+    return nextOrder;
+};
+
 const setHidden = (id, hidden) => {
     const current = new Set(getHidden());
     if (hidden) {
@@ -194,6 +204,7 @@ export {
     HIDDEN_KEY,
     getStoredOrder,
     setZoneOrder,
+    moveMenuItem,
     getZoneDisplayOrder,
     getZoneExtras,
     getHidden,

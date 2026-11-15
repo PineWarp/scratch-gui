@@ -1,7 +1,6 @@
 import React, {useEffect, useState, useCallback, useMemo, useRef} from 'react';
 import {getItem as getStorageItem} from '../../lib/utils/safe-storage.js';
 import {useParams, Link, useNavigate} from 'react-router-dom';
-import {FormattedMessage} from 'react-intl';
 import {useIntl} from '../../lib/tw-use-intl.jsx';
 import {
     Heart, ThumbsDown, ArrowLeft, Play, GitFork, ExternalLink, EyeOff,
@@ -1159,10 +1158,6 @@ const Project = () => {
                             restoreUserTheme();
                         }}
                     >{t('mw.community.project.useMyTheme', 'Use my theme')}</button>
-                    <Link
-                        to="/settings"
-                        className={styles.themeNoticeButton}
-                    >{t('mw.community.project.preferences', 'Preferences')}</Link>
                 </div>
             ) : null}
 

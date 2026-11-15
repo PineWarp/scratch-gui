@@ -26,6 +26,12 @@
     left: 0;
 }
 
+/* 下方空间不足时向上展开，必须写在 .menu / .menu-left 之后才能覆盖 top */
+.menu-up {
+    top: auto;
+    bottom: calc(100% + 7px);
+}
+
 .item {
     display: flex;
     align-items: center;

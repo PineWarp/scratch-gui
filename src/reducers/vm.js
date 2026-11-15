@@ -3,6 +3,7 @@ import formatMessage from 'format-message';
 import storage from '../lib/persistence/storage';
 import {MAXIMUM_CLOUD_VARIABLES} from '../lib/constants/tw-cloud-limits';
 import {installProjectMetadata} from '../lib/mw-project-metadata';
+import {installSb3SaveCache} from '../lib/mw/sb3-save-cache';
 
 const SET_VM = 'scratch-gui/vm/SET_VM';
 const defaultVM = new VM();
@@ -35,6 +36,10 @@ defaultVM.setLocale = (locale, messages) => {
 };
 
 installProjectMetadata(defaultVM);
+// Reuse the previous save's compressed assets instead of recompressing the
+// whole project every time. Wraps the VM's save methods, so every save path
+// benefits without knowing about it.
+installSb3SaveCache(defaultVM);
 const initialState = defaultVM;
 
 const reducer = function (state, action) {

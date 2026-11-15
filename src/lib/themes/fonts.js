@@ -66,7 +66,13 @@ const applyThemeFonts = async fonts => {
         '.scratch-render-overlays',
         '.scratch-render-overlays *',
         '.xterm',
-        '.xterm *'
+        '.xterm *',
+        // Anything that sets its own font inline (font pickers, font previews,
+        // text overlays) must keep that font instead of the theme font. Without
+        // this, the !important theme rule overrides inline font-family styles
+        // and every font preview renders in the theme font instead.
+        '[style*="font-family"]',
+        '[style*="font-family"] *'
     ].map(selector => `:not(${selector})`).join('');
 
     // Create style element
@@ -78,16 +84,19 @@ const applyThemeFonts = async fonts => {
             font-family: var(--theme-font, ${fontFamily}) !important;
         }
 
-        /* Ensure key UI elements inherit correctly */
-        body, html,
-        .gui, 
-        .blocklySvg,
-        [class*="gui_"],
-        [class*="menu-bar_"],
-        [class*="settings-menu_"],
-        .blocklyHtmlInput,
-        button, input, textarea[class^="paint-editor_text-area_*"], select,
-        .menu-bar, .menu-item {
+        /* Ensure key UI elements inherit correctly. Elements that set their own
+           font inline (font previews, code editors, ...) are left untouched. */
+        :is(
+            body, html,
+            .gui, 
+            .blocklySvg,
+            [class*="gui_"],
+            [class*="menu-bar_"],
+            [class*="settings-menu_"],
+            .blocklyHtmlInput,
+            button, input, textarea[class^="paint-editor_text-area_*"], select,
+            .menu-bar, .menu-item
+        ):not([style*="font-family"]) {
             font-family: inherit !important;
         }
         

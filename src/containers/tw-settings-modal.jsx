@@ -5,7 +5,7 @@ import {defineMessages, injectIntl, intlShape} from 'react-intl';
 import bindAll from 'lodash.bindall';
 import {connect} from 'react-redux';
 import {closeSettingsModal} from '../reducers/modals';
-import {setCloudHost} from '../reducers/tw';
+import {setCloud, setCloudHost} from '../reducers/tw';
 import {setTheme} from '../reducers/theme';
 import SettingsModalComponent from '../components/tw-settings-modal/settings-modal.jsx';
 import {defaultStageSize, setCustomStageSize} from '../reducers/custom-stage-size';
@@ -17,6 +17,8 @@ import {getStyleSetting, getStyleSettings, setStyleSetting} from '../lib/mw-styl
 import {applyTheme} from '../lib/themes/themePersistance';
 import {getHideOperatorArrows, setHideOperatorArrows} from '../lib/mw-operator-arrows';
 import {getVanillaPalette, setVanillaPalette} from '../lib/mw-vanilla-palette';
+import {getEmbedGitOnSave, setEmbedGitOnSave} from '../lib/mw-embed-git-on-save';
+import {getDisableCloudVariables, setDisableCloudVariables} from '../lib/mw-editor-defaults.js';
 import LazyScratchBlocks from '../lib/tw-lazy-scratch-blocks';
 import {getSkipAssetLoading, setSkipAssetLoading} from '../lib/mw-skip-asset-loading';
 import AddonHooks from '../addons/hooks.js';
@@ -83,6 +85,8 @@ class UsernameModal extends React.Component {
             skipAssetLoading: getSkipAssetLoading(),
             hideOperatorArrows: getHideOperatorArrows(),
             vanillaPalette: getVanillaPalette(),
+            embedGitOnSave: getEmbedGitOnSave(),
+            disableCloudVariables: getDisableCloudVariables(),
             squareStageCorners: getAppearanceSetting('square-stage-corners'),
             hideDeleteButton: getAppearanceSetting('hide-delete-button'),
             hideExtensionButton: getAppearanceSetting('hide-extension-button'),
@@ -102,6 +106,7 @@ class UsernameModal extends React.Component {
             'handleStageWidthChange',
             'handleStageHeightChange',
             'handleDisableCompilerChange',
+            'handleDisableCloudVariablesChange',
             'handleCaseSensitiveListsChange',
             'handleUnsafeOptimisationsChange',
             'handleRealLayerIndexesChange',
@@ -118,6 +123,7 @@ class UsernameModal extends React.Component {
             'handleSkipAssetLoadingChange',
             'handleHideOperatorArrowsChange',
             'handleVanillaPaletteChange',
+            'handleEmbedGitOnSaveChange',
             'handleSquareStageCornersChange',
             'handleHideDeleteButtonChange',
             'handleHideExtensionButtonChange',
@@ -138,7 +144,7 @@ class UsernameModal extends React.Component {
         // eslint-disable-next-line no-alert
         const newFramerate = await prompt(this.props.intl.formatMessage(messages.newFramerate), this.props.framerate);
         const parsed = parseFloat(newFramerate);
-        if (isFinite(parsed) && parsed > 0 && parsed <= 500) {
+        if (isFinite(parsed) && parsed > 0) {
             this.props.vm.setFramerate(parsed);
         }
     }
@@ -172,6 +178,12 @@ class UsernameModal extends React.Component {
         this.props.vm.setCompilerOptions({
             enabled: !e.target.checked
         });
+    }
+    handleDisableCloudVariablesChange (e) {
+        const disabled = e.target.checked;
+        setDisableCloudVariables(disabled);
+        this.props.onSetCloud(!disabled);
+        this.setState({disableCloudVariables: disabled});
     }
     handleCaseSensitiveListsChange (e) {
         this.props.vm.setRuntimeOptions({
@@ -320,7 +332,7 @@ class UsernameModal extends React.Component {
         this.props.onSetCloudHost(value);
     }
 
-handleWindowAnimationChange (e) {
+    handleWindowAnimationChange (e) {
         const enabled = e.target.checked;
         this.setState({windowAnimation: enabled});
         WindowManager.setAnimationsEnabled(enabled);
@@ -353,6 +365,12 @@ handleWindowAnimationChange (e) {
     handleVanillaPaletteChange (e) {
         this.setState({vanillaPalette: e.target.checked});
         setVanillaPalette(e.target.checked);
+    }
+
+    handleEmbedGitOnSaveChange (e) {
+        const enabled = e.target.checked;
+        this.setState({embedGitOnSave: enabled});
+        setEmbedGitOnSave(enabled);
     }
 
     setAppearance_ (stateKey, id, checked) {
@@ -421,6 +439,8 @@ handleWindowAnimationChange (e) {
                 onStageHeightChange={this.handleStageHeightChange}
                 onDisableCompilerChange={this.handleDisableCompilerChange}
                 disableCompiler={this.props.disableCompiler}
+                onDisableCloudVariablesChange={this.handleDisableCloudVariablesChange}
+                disableCloudVariables={this.state.disableCloudVariables}
                 onCaseSensitiveListsChange={this.handleCaseSensitiveListsChange}
                 onRealLayerIndexesChange={this.handleRealLayerIndexesChange}
                 stageWidth={this.props.customStageSize.width}
@@ -446,6 +466,8 @@ handleWindowAnimationChange (e) {
                 hideOperatorArrows={this.state.hideOperatorArrows}
                 onVanillaPaletteChange={this.handleVanillaPaletteChange}
                 vanillaPalette={this.state.vanillaPalette}
+                onEmbedGitOnSaveChange={this.handleEmbedGitOnSaveChange}
+                embedGitOnSave={this.state.embedGitOnSave}
                 onSquareStageCornersChange={this.handleSquareStageCornersChange}
                 squareStageCorners={this.state.squareStageCorners}
                 onHideDeleteButtonChange={this.handleHideDeleteButtonChange}
@@ -506,10 +528,13 @@ UsernameModal.propTypes = {
     }),
     onSetCustomStageSize: PropTypes.func,
     disableCompiler: PropTypes.bool,
+    onSetCloudHost: PropTypes.func,
+    onSetCloud: PropTypes.func,
     caseSensitiveLists: PropTypes.bool,
     realLayerIndexes: PropTypes.bool,
     theme: PropTypes.any,
-    onChangeTheme: PropTypes.func
+    onChangeTheme: PropTypes.func,
+    onPreviewTheme: PropTypes.func
 };
 
 const mapStateToProps = state => ({
@@ -534,11 +559,13 @@ const mapStateToProps = state => ({
 const mapDispatchToProps = dispatch => ({
     onClose: () => dispatch(closeSettingsModal()),
     onSetCloudHost: cloudHost => dispatch(setCloudHost(cloudHost)),
+    onSetCloud: cloud => dispatch(setCloud(cloud)),
     onSetCustomStageSize: (width, height) => dispatch(setCustomStageSize(width, height)),
     onChangeTheme: theme => {
         dispatch(setTheme(theme));
         applyTheme(theme);
-    }
+    },
+    onPreviewTheme: theme => dispatch(setTheme(theme))
 });
 
 export default injectIntl(connect(

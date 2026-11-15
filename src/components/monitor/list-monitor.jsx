@@ -1,11 +1,19 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
-import {FormattedMessage} from 'react-intl';
+import {FormattedMessage, defineMessages, injectIntl, intlShape} from 'react-intl';
 import styles from './monitor.css';
 import ListMonitorScroller from './list-monitor-scroller.jsx';
 
-const ListMonitor = ({draggable, label, width, height, value, onResizeMouseDown, onAdd, ...rowProps}) => (
+const messages = defineMessages({
+    addItem: {
+        defaultMessage: 'Add list item',
+        description: 'Accessible label for the button that appends an item to a list monitor',
+        id: 'mw.monitor.addListItem'
+    }
+});
+
+const ListMonitor = ({draggable, intl, label, width, height, value, onResizeMouseDown, onAdd, ...rowProps}) => (
     <div
         className={styles.listMonitor}
         style={{
@@ -26,12 +34,15 @@ const ListMonitor = ({draggable, label, width, height, value, onResizeMouseDown,
             />
         </div>
         <div className={styles.listFooter}>
-            <div
+            <button
+                type="button"
+                aria-label={intl.formatMessage(messages.addItem)}
                 className={classNames(draggable ? styles.addButton : null, 'no-drag')}
+                disabled={!draggable}
                 onClick={draggable ? onAdd : null}
             >
                 {'+' /* TODO waiting on asset */}
-            </div>
+            </button>
             <div className={styles.footerLength}>
                 <FormattedMessage
                     defaultMessage="length {length}"
@@ -60,6 +71,7 @@ ListMonitor.propTypes = {
     }).isRequired,
     draggable: PropTypes.bool.isRequired,
     height: PropTypes.number,
+    intl: intlShape,
     label: PropTypes.string.isRequired,
     onActivate: PropTypes.func,
     onAdd: PropTypes.func,
@@ -82,4 +94,4 @@ ListMonitor.defaultProps = {
     height: 200
 };
 
-export default ListMonitor;
+export default injectIntl(ListMonitor);

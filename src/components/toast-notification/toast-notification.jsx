@@ -15,34 +15,46 @@ const ICONS = {
 };
 
 const ToastNotificationComponent = props => {
-    const {message, type = 'info', position = 'top-right', visible, onClose} = props;
+    const {message, type = 'info', position = 'top-right', visible, seq, onClose} = props;
     const intl = props.intl;
 
-    const [closing, setClosing] = React.useState(false);
+    // `closingFor` records the `seq` that started its own exit animation rather
+    // than a plain boolean, so "is this toast leaving?" is answered per showing.
+    // A toast that arrives while the previous one is animating out therefore
+    // reads as *not* closing (closingFor !== seq): it slides in, and — because
+    // `closing` flips back to false — the outgoing toast's 300ms timer is
+    // cleaned up instead of calling onClose() on the new one. With a boolean
+    // here, the second toast inherited the exit animation and was unmounted
+    // ~300ms later, i.e. it silently never showed.
+    const [closingFor, setClosingFor] = React.useState(null);
+    const closing = closingFor !== null && closingFor === seq;
 
     const handleClose = React.useCallback(() => {
-        setClosing(true);
-    }, []);
+        setClosingFor(seq);
+    }, [seq]);
 
+    // Dwell timer, keyed on `seq` so re-showing the exact same message restarts
+    // the full 3s instead of inheriting what is left of the previous showing.
     React.useEffect(() => {
         if (!visible || !message) {
-            setClosing(false);
-            return;
+            setClosingFor(null);
+            return () => {};
         }
         const timeout = setTimeout(() => {
-            setClosing(true);
+            setClosingFor(seq);
         }, 3000);
         return () => clearTimeout(timeout);
-    }, [visible, message, type]);
+    }, [visible, message, type, seq]);
 
+    // Exit animation, owned by the showing that started it (see above).
     React.useEffect(() => {
         if (!closing) return () => {};
         const timeout = setTimeout(() => {
             onClose();
-            setClosing(false);
+            setClosingFor(null);
         }, 300);
         return () => clearTimeout(timeout);
-    }, [closing, onClose]);
+    }, [closing, onClose, seq]);
 
     if (!visible || !message) return null;
 
@@ -83,6 +95,9 @@ ToastNotificationComponent.propTypes = {
     message: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
     type: PropTypes.oneOf(['success', 'error', 'info', 'warning']),
     position: PropTypes.oneOf(['top-right', 'bottom-right']),
+    // Bumped by every SHOW_TOAST (reducers/toast.js). Optional so the component
+    // still behaves when used outside the store.
+    seq: PropTypes.number,
     visible: PropTypes.bool,
     onClose: PropTypes.func.isRequired
 };

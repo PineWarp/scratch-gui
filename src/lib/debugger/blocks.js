@@ -15,6 +15,25 @@ const LOG = `${ZW}log${ZW} %s`;
 const WARN = `${ZW}warn${ZW} %s`;
 const ERROR = `${ZW}error${ZW} %s`;
 
+// scratch-vm creates the "Addons" category the first time addAddonBlock is
+// called, and names it with its own format-message setup. That name is only
+// resolved once and is not refreshed on locale changes, so it can stay in
+// English ("Addons") while the rest of the UI is translated. Re-apply it from
+// the GUI messages (which include the tw-translations patch) instead.
+const ADDON_CATEGORY_ID = 'a-b';
+
+const relocalizeAddonCategory = (vm, msg) => {
+    const runtime = vm && vm.runtime;
+    if (!runtime || !runtime._blockInfo) return;
+    const blockInfo = runtime._blockInfo.find(info => info.id === ADDON_CATEGORY_ID);
+    if (!blockInfo) return;
+    const name = msg('tw.blocks.addons', 'Addons');
+    if (blockInfo.name === name) return;
+    blockInfo.name = name;
+    // Let the blocks area rebuild its toolbox so the label is redrawn.
+    runtime.emit('BLOCKSINFO_UPDATE', blockInfo);
+};
+
 const addBlock = (vm, procedureCode, {args, displayName, callback}) => {
     const procCodeArguments = parseArguments(procedureCode);
     if (args.length !== procCodeArguments.length) {
@@ -124,6 +143,11 @@ const registerDebuggerBlocks = (vm, handlers) => {
         callback: (args, thread) => onLog(Object.values(args)[0], thread, 'error')
     });
 
+    // The category was created by the first addAddonBlock call above with a
+    // name resolved before the GUI locale was applied. Use the GUI messages
+    // so it matches the rest of the toolbox from the start.
+    relocalizeAddonCategory(vm, msg);
+
     patchBlockly();
 
     const ogGreenFlag = vm.runtime.greenFlag;
@@ -212,6 +236,7 @@ const relocalizeDebuggerBlocks = (vm, handlers) => {
             }
         }
     }
+    relocalizeAddonCategory(vm, msg);
     if (vm.editingTarget && vm.emitWorkspaceUpdate) {
         vm.emitWorkspaceUpdate();
     }

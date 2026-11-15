@@ -13,6 +13,17 @@ export default class BlockItem {
          */
         this.clones = null;
         this.eventName = null;
+        /**
+         * Field values straight from the VM, set for blocks the workspace has not rendered. They
+         * are what lets a row still be drawn as a real block instead of falling back to text.
+         * @type {?object}
+         */
+        this.vmFields = null;
+        /**
+         * The name of the variable or list this entry stands for, if it stands for one.
+         * @type {?string}
+         */
+        this.variableName = null;
     }
 
     /**

@@ -8,6 +8,17 @@ import {requestPersistentStorage} from '../utils/storage-request';
 const DATABASE_NAME = 'TW_Backpack';
 const DATABASE_VERSION = 1;
 const STORE_NAME = 'backpack';
+const CHANGE_CHANNEL_NAME = 'mw:backpack-changes';
+
+const SOUND_FORMAT_BY_MIME = {
+    'audio/mp3': 'mp3',
+    'audio/mpeg': 'mp3',
+    'audio/ogg': 'ogg',
+    'application/ogg': 'ogg',
+    'audio/wav': 'wav',
+    'audio/wave': 'wav',
+    'audio/x-wav': 'wav'
+};
 
 const idbItemToBackpackItem = item => {
     // convert id to string
@@ -39,7 +50,9 @@ const idbItemToBackpackItem = item => {
     }
 
     if (assetType) {
-        const extension = assetType.runtimeFormat;
+        const extension = item.type === 'sound' ?
+            SOUND_FORMAT_BY_MIME[item.mime] || assetType.runtimeFormat :
+            assetType.runtimeFormat;
         const itemMD5 = item.bodyMD5;
         const md5ext = `${itemMD5}.${extension}`;
         item.body = md5ext;
@@ -52,6 +65,43 @@ const idbItemToBackpackItem = item => {
     }
 
     return item;
+};
+
+let changeChannel = null;
+let changeChannelOpened = false;
+const changeListeners = new Set();
+
+const getChangeChannel = () => {
+    if (changeChannelOpened) return changeChannel;
+    changeChannelOpened = true;
+    if (typeof BroadcastChannel === 'undefined') return changeChannel;
+    try {
+        changeChannel = new BroadcastChannel(CHANGE_CHANNEL_NAME);
+        changeChannel.onmessage = () => {
+            changeListeners.forEach(listener => listener());
+        };
+    } catch (e) {
+        changeChannel = null;
+    }
+    return changeChannel;
+};
+
+const notifyChange = () => {
+    const channel = getChangeChannel();
+    if (!channel) return;
+    try {
+        channel.postMessage({changed: true});
+    } catch (e) {
+        changeChannel = null;
+    }
+};
+
+const subscribeBackpackChanges = listener => {
+    getChangeChannel();
+    changeListeners.add(listener);
+    return () => {
+        changeListeners.delete(listener);
+    };
 };
 
 let _db;
@@ -77,8 +127,12 @@ const openDB = () => new Promise((resolve, reject) => {
     };
 
     request.onsuccess = event => {
-        _db = event.target.result;
-        resolve(_db);
+        const db = event.target.result;
+        db.onclose = () => {
+            if (_db === db) _db = null;
+        };
+        _db = db;
+        resolve(db);
     };
 
     request.onerror = event => {
@@ -86,14 +140,25 @@ const openDB = () => new Promise((resolve, reject) => {
     };
 });
 
+const openTransaction = async mode => {
+    const db = await openDB();
+    try {
+        return db.transaction(STORE_NAME, mode);
+    } catch (error) {
+        if (error.name !== 'InvalidStateError') throw error;
+        if (_db === db) _db = null;
+        const reopened = await openDB();
+        return reopened.transaction(STORE_NAME, mode);
+    }
+};
+
 const getBackpackContents = async ({
     limit,
     offset
 }) => {
-    const db = await openDB();
+    const transaction = await openTransaction('readonly');
     return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        transaction.onerror = event => {
+        transaction.onerror = transaction.onabort = event => {
             reject(new Error(`Getting contents: ${event.target.error}`));
         };
         const store = transaction.objectStore(STORE_NAME);
@@ -129,10 +194,9 @@ const saveBackpackObject = async ({
     // User interaction -- fine to show a permission dialog
     requestPersistentStorage();
 
-    const db = await openDB();
+    const transaction = await openTransaction('readwrite');
     return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        transaction.onerror = event => {
+        transaction.onerror = transaction.onabort = event => {
             reject(new Error(`Sving object: ${event.target.error}`));
         };
         const store = transaction.objectStore(STORE_NAME);
@@ -149,6 +213,9 @@ const saveBackpackObject = async ({
         const putRequest = store.put(idbItem);
         putRequest.onsuccess = () => {
             idbItem.id = putRequest.result;
+        };
+        transaction.oncomplete = () => {
+            notifyChange();
             resolve(idbItemToBackpackItem(idbItem));
         };
     });
@@ -158,16 +225,16 @@ const deleteBackpackObject = async ({
     id
 }) => {
     id = +id;
-    const db = await openDB();
+    const transaction = await openTransaction('readwrite');
     return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        transaction.onerror = event => {
+        transaction.onerror = transaction.onabort = event => {
             reject(new Error(`Deleting object: ${event.target.error}`));
         };
         const store = transaction.objectStore(STORE_NAME);
         // Convert string IDs to number IDs
-        const deleteRequest = store.delete(id);
-        deleteRequest.onsuccess = () => {
+        store.delete(id);
+        transaction.oncomplete = () => {
+            notifyChange();
             resolve();
         };
     });
@@ -178,23 +245,29 @@ const updateBackpackObject = async ({
     name
 }) => {
     id = +id;
-    const db = await openDB();
+    const transaction = await openTransaction('readwrite');
     return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        transaction.onerror = event => {
+        transaction.onerror = transaction.onabort = event => {
             reject(new Error(`Updating object: ${event.target.error}`));
         };
         const store = transaction.objectStore(STORE_NAME);
+        let newItem;
         const getRequest = store.get(id);
         getRequest.onsuccess = () => {
-            const newItem = {
+            if (!getRequest.result) return;
+            newItem = {
                 ...getRequest.result,
                 name: name
             };
-            const putRequest = store.put(newItem);
-            putRequest.onsuccess = () => {
-                resolve(idbItemToBackpackItem(newItem));
-            };
+            store.put(newItem);
+        };
+        transaction.oncomplete = () => {
+            if (!newItem) {
+                reject(new Error('Updating object: item no longer exists'));
+                return;
+            }
+            notifyChange();
+            resolve(idbItemToBackpackItem(newItem));
         };
     });
 };
@@ -203,5 +276,6 @@ export default {
     getBackpackContents,
     saveBackpackObject,
     deleteBackpackObject,
-    updateBackpackObject
+    updateBackpackObject,
+    subscribeBackpackChanges
 };

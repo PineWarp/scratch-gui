@@ -1,5 +1,8 @@
 import LightningFS from '@isomorphic-git/lightning-fs';
-import {getItem as getStorageItem} from '../utils/safe-storage.js';
+// Author identity is plain localStorage; keep it in a dependency-free module so
+// that read-only consumers (the settings window via lib/git/config.js) do not
+// have to pull isomorphic-git/lightning-fs/jszip into their chunk.
+import {getDefaultAuthor, setDefaultAuthor} from './author-store.js';
 import http from 'isomorphic-git/http/web';
 import git, {Errors} from 'isomorphic-git';
 import JSZip from 'jszip';
@@ -230,26 +233,6 @@ const stageAll = async (fs, dir, {onProgress} = {}) => {
         if (i + batchSize < rows.length) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
-    }
-};
-
-const getDefaultAuthor = () => {
-    try {
-        const saved = JSON.parse(getStorageItem('mw:git-author') || 'null');
-        if (saved && typeof saved.name === 'string' && typeof saved.email === 'string') {
-            return saved;
-        }
-    } catch (e) {
-        // ignore
-    }
-    return {name: 'User', email: 'user@example.com'};
-};
-
-const setDefaultAuthor = author => {
-    try {
-        localStorage.setItem('mw:git-author', JSON.stringify(author));
-    } catch (e) {
-        // ignore
     }
 };
 

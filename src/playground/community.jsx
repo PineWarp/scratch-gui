@@ -22,6 +22,12 @@ import '!!style-loader!css-loader!../community/styles/tokens.css';
 // everything else (e.g. p1784...) is a MistWarp community project.
 const embedMatch = typeof location !== 'undefined' &&
     location.pathname.match(/^\/(\d+|p[A-Za-z0-9]+)\/embed\/?$/);
+// 根路径 /（含直接访问 /index.html）默认进入编辑器。
+// 生产环境静态托管无法做服务端重定向，这里由社区 bundle 兜底跳转；
+// dev server 已通过 historyApiFallback 把 / 直接重写到 editor.html。
+const rootEntryMatch = typeof location !== 'undefined' &&
+    (location.pathname === '/' || location.pathname === '/index.html');
+const editorEntryPath = process.env.ROUTING_STYLE === 'wildcard' ? 'editor' : 'editor.html';
 // The bare /project path (no id) is the "direct project link" entry, e.g.
 // /project?project_url=... . It also falls through to this community bundle,
 // where there is no matching route (only /project/:id exists). Bounce it to
@@ -29,7 +35,9 @@ const embedMatch = typeof location !== 'undefined' &&
 // and exiting fullscreen lands in the editor.
 const projectEntryMatch = typeof location !== 'undefined' &&
     (location.pathname === '/project' || location.pathname === '/project/');
-if (projectEntryMatch) {
+if (rootEntryMatch) {
+    location.replace(`/${editorEntryPath}${location.search}${location.hash}`);
+} else if (projectEntryMatch) {
     const params = new URLSearchParams(location.search);
     params.set('startFullscreen', '1');
     const query = params.toString();

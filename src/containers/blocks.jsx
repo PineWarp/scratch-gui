@@ -50,6 +50,7 @@ import AddonHooks from '../addons/hooks.js';
 import LoadScratchBlocksHOC from '../lib/components/tw-load-scratch-blocks-hoc.jsx';
 import {offsetToPosition} from '../lib/backpack/code-payload.js';
 import {gentlyRequestPersistentStorage} from '../lib/utils/storage-request.js';
+import {CAT_BLOCKS_CHANGED, initCatBlocks} from '../lib/mw-cat-blocks.js';
 import CollaborationService from '../lib/collaboration/index.js';
 import LazyScratchBlocks from '../lib/tw-lazy-scratch-blocks';
 
@@ -99,6 +100,30 @@ const DroppableBlocks = DropAreaHOC([
 // through it. This avoids a one-time full synchronous render of every block,
 // which is what causes the visible freeze when opening big projects.
 const DEFERRED_WORKSPACE_LOAD_MIN_BLOCKS = 40;
+
+/**
+ * Whether any block in the project has no registered block definition.
+ *
+ * The deferred loader builds each script asynchronously and, if building one
+ * throws (an opcode the editor does not know, e.g. an extension that failed to
+ * load), it disposes the blocks it already created. That disposal runs with
+ * Blockly events enabled, so the VM receives deletes for ids that still exist
+ * in the project and the real blocks are destroyed. Such a project must go
+ * through the synchronous XML loader instead: it can only fail on the view and
+ * never deletes anything from the VM.
+ * @param {object} ScratchBlocks The scratch-blocks module.
+ * @param {object} blocks scratch-vm block descriptions, keyed by block id.
+ * @returns {boolean} True when a block type is missing.
+ */
+const hasUndefinedBlockType = (ScratchBlocks, blocks) => {
+    if (!ScratchBlocks || !ScratchBlocks.Blocks || !blocks) return false;
+    for (const id in blocks) {
+        if (!Object.prototype.hasOwnProperty.call(blocks, id)) continue;
+        const opcode = blocks[id] && blocks[id].opcode;
+        if (!opcode || !ScratchBlocks.Blocks[opcode]) return true;
+    }
+    return false;
+};
 
 /**
  * Returns true when the workspace is mounted, alive, and not disposed.
@@ -161,6 +186,7 @@ class Blocks extends React.Component {
         this.setFlyoutWidth = this.setFlyoutWidth.bind(this);
 
         this.handleAddonSettingChanged = this.handleAddonSettingChanged.bind(this);
+        this.handleCatBlocksChanged = this.handleCatBlocksChanged.bind(this);
         this.handleVanillaPaletteChanged = this.handleVanillaPaletteChanged.bind(this);
         this.applyPaletteResizeEnabledState = this.applyPaletteResizeEnabledState.bind(this);
         this.updateBlockColors = this.updateBlockColors.bind(this);
@@ -181,6 +207,7 @@ class Blocks extends React.Component {
         this.toolboxStateUpdateTimeout = null;
         this.workspaceVisibilityRaf = null;
         this.workspaceResizeRaf = null;
+        this.blocksResizeAnimationTimer = null;
         this.blocksResizeObserver = null;
         this.lastBlocksWidth = null;
         this.lastBlocksHeight = null;
@@ -188,9 +215,11 @@ class Blocks extends React.Component {
     }
     componentDidMount () {
         SettingsStore.addEventListener('setting-changed', this.handleAddonSettingChanged);
+        window.addEventListener(CAT_BLOCKS_CHANGED, this.handleCatBlocksChanged);
         window.addEventListener(VANILLA_PALETTE_CHANGED, this.handleVanillaPaletteChanged);
 
         this.ScratchBlocks = VMScratchBlocks(this.props.vm, this.props.useCatBlocks);
+        initCatBlocks();
         this.ScratchBlocks.prompt = this.handlePromptStart;
         this.ScratchBlocks.statusButtonCallback = this.handleConnectionModalStart;
         this.ScratchBlocks.recordSoundCallback = this.handleOpenSoundRecorder;
@@ -485,6 +514,7 @@ class Blocks extends React.Component {
     }
     componentWillUnmount () {
         SettingsStore.removeEventListener('setting-changed', this.handleAddonSettingChanged);
+        window.removeEventListener(CAT_BLOCKS_CHANGED, this.handleCatBlocksChanged);
         window.removeEventListener(VANILLA_PALETTE_CHANGED, this.handleVanillaPaletteChanged);
         this.detachVM();
         this.unmounted = true;
@@ -501,6 +531,8 @@ class Blocks extends React.Component {
             window.cancelAnimationFrame(this.workspaceResizeRaf);
             this.workspaceResizeRaf = null;
         }
+        clearTimeout(this.blocksResizeAnimationTimer);
+        this.blocksResizeAnimationTimer = null;
         if (this.blocksResizeObserver) {
             this.blocksResizeObserver.disconnect();
             this.blocksResizeObserver = null;
@@ -666,6 +698,35 @@ class Blocks extends React.Component {
         if (toolboxXML) {
             this.props.updateToolboxState(toolboxXML);
         }
+    }
+
+    handleCatBlocksChanged () {
+        // Cat hats change block shapes, so rebuild the flyout like the old addon did.
+        try {
+            this.props.vm.emitWorkspaceUpdate();
+        } catch (e) {
+            // ignore
+        }
+        try {
+            const workspace = this.workspace || this.ScratchBlocks.getMainWorkspace();
+            const flyout = workspace && workspace.getFlyout && workspace.getFlyout();
+            if (workspace && flyout) {
+                this.ScratchBlocks.Events.disable();
+                const flyoutWorkspace = flyout.getWorkspace();
+                this.ScratchBlocks.Xml.clearWorkspaceAndLoadFromXml(
+                    this.ScratchBlocks.Xml.workspaceToDom(flyoutWorkspace),
+                    flyoutWorkspace
+                );
+                if (workspace.getToolbox() && workspace.getToolbox().refreshSelection) {
+                    workspace.getToolbox().refreshSelection();
+                }
+                workspace.toolboxRefreshEnabled_ = true;
+                this.ScratchBlocks.Events.enable();
+            }
+        } catch (e) {
+            // ignore
+        }
+        initCatBlocks();
     }
 
     handleAddonSettingChanged (e) {
@@ -1218,7 +1279,8 @@ class Blocks extends React.Component {
                 Object.keys(target.blocks._blocks).length : 0;
             const key = `${target.id}|${target.isStage}|${this.props.theme.id}|` +
                 `${costumeName}|${backdropName}|${soundName}|${assetName}|` +
-                `${blocksCount}|${runtime._blockInfo.length}|${getVanillaPalette()}`;
+                `${blocksCount}|${runtime._blockInfo.length}|${this.props.locale}|` +
+                `${getVanillaPalette()}`;
             if (this._toolboxXMLCache && this._toolboxXMLCache.key === key) {
                 return this._toolboxXMLCache.xml;
             }
@@ -1268,7 +1330,18 @@ class Blocks extends React.Component {
             0 : DEFERRED_WORKSPACE_LOAD_MIN_BLOCKS;
         const useDeferredLoad = !!this.ScratchBlocks.Xml.clearWorkspaceAndLoadFromXmlDeferred &&
             (blockCount >= minDeferredBlocks ||
-                Object.keys(this.workspace.blockDB_ || {}).length >= minDeferredBlocks);
+                Object.keys(this.workspace.blockDB_ || {}).length >= minDeferredBlocks) &&
+            // A block the loader cannot build would make it throw part-way
+            // through a script, and its cleanup deletes the already created
+            // blocks from the VM. Keep the project intact by loading such
+            // projects synchronously instead.
+            !hasUndefinedBlockType(this.ScratchBlocks, hasDescs ? data.blocks.blocks : null);
+        // The block descriptions are handed over separately; only the header
+        // (variables / comments / frames) goes through XML then. When the VM
+        // does not provide descriptions, the deferred loader must get the full
+        // XML instead: headerXml contains no blocks, so using it would clear
+        // the workspace and load nothing back.
+        const workspaceXml = hasDescs ? (data.headerXml || data.xml) : data.xml;
         // Re-apply the workspace layout once the (possibly asynchronous) load
         // finishes. The container may have been resized (stage zoom, tab switch,
         // window resize) while the blocks were loading, which would otherwise
@@ -1303,7 +1376,7 @@ class Blocks extends React.Component {
         };
         try {
             if (useDeferredLoad) {
-                const headerDom = this.ScratchBlocks.Xml.textToDom(data.headerXml || data.xml);
+                const headerDom = this.ScratchBlocks.Xml.textToDom(workspaceXml);
                 this.deferredWorkspaceLoad = this.ScratchBlocks.Xml.clearWorkspaceAndLoadFromXmlDeferred(
                     headerDom,
                     this.workspace,
@@ -1507,6 +1580,19 @@ class Blocks extends React.Component {
         this.lastBlocksWidth = width;
         this.lastBlocksHeight = height;
         if (this.workspaceResizeRaf) return;
+        // 背包展开/收起时高度每一帧都在变化，逐帧重排整个 Blockly 工作区
+        // （重排工具箱、滚轮、积木视图）开销很大，会造成明显卡顿。
+        // 动画期间把它节流到约 10fps，动画结束后尺寸稳定时会再补一次完整重排。
+        if (document.documentElement.classList.contains('backpack-animating')) {
+            if (this.blocksResizeAnimationTimer) return;
+            this.blocksResizeAnimationTimer = setTimeout(() => {
+                this.blocksResizeAnimationTimer = null;
+                if (!workspaceIsAlive(this)) return;
+                if (!this.props.isVisible) return;
+                this.resizeBlocksWorkspace();
+            }, 80);
+            return;
+        }
         this.workspaceResizeRaf = window.requestAnimationFrame(() => {
             this.workspaceResizeRaf = null;
             if (!workspaceIsAlive(this)) return;
@@ -1770,7 +1856,9 @@ Blocks.defaultProps = {
 
 const mapStateToProps = state => ({
     anyModalVisible: (
-        Object.keys(state.scratchGui.modals).some(key => state.scratchGui.modals[key]) ||
+        // `modals` stores some non-flag values (e.g. projectMetadataView), so
+        // only boolean `true` entries count as an open modal.
+        Object.keys(state.scratchGui.modals).some(key => state.scratchGui.modals[key] === true) ||
         state.scratchGui.mode.isFullScreen
     ),
     customStageSize: state.scratchGui.customStageSize,

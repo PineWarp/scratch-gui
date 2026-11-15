@@ -1,10 +1,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import {injectIntl, intlShape, defineMessages, FormattedMessage} from 'react-intl';
+import {FormattedMessage} from 'react-intl';
 import styles from './fonts-modal.css';
 import bindAll from 'lodash.bindall';
 import classNames from 'classnames';
 
+// These are font names, not UI text: they must never be translated, because
+// they are used directly as the CSS font-family for each preview.
 const FALLBACK_FONTS = [
     'Sans Serif',
     'Serif',
@@ -14,44 +16,6 @@ const FALLBACK_FONTS = [
     'Pixel',
     'Scratch'
 ];
-
-const messages = defineMessages({
-    'Sans Serif': {
-        defaultMessage: 'Sans Serif',
-        description: 'Name of the Sans Serif fallback font',
-        id: 'tw.fonts.fallback.sansSerif'
-    },
-    'Serif': {
-        defaultMessage: 'Serif',
-        description: 'Name of the Serif fallback font',
-        id: 'tw.fonts.fallback.serif'
-    },
-    'Handwriting': {
-        defaultMessage: 'Handwriting',
-        description: 'Name of the Handwriting fallback font',
-        id: 'tw.fonts.fallback.handwriting'
-    },
-    'Marker': {
-        defaultMessage: 'Marker',
-        description: 'Name of the Marker fallback font',
-        id: 'tw.fonts.fallback.marker'
-    },
-    'Curly': {
-        defaultMessage: 'Curly',
-        description: 'Name of the Curly fallback font',
-        id: 'tw.fonts.fallback.curly'
-    },
-    'Pixel': {
-        defaultMessage: 'Pixel',
-        description: 'Name of the Pixel fallback font',
-        id: 'tw.fonts.fallback.pixel'
-    },
-    'Scratch': {
-        defaultMessage: 'Scratch',
-        description: 'Name of the Scratch fallback font',
-        id: 'tw.fonts.fallback.scratch'
-    }
-});
 
 class FontFallback extends React.Component {
     constructor (props) {
@@ -66,7 +30,6 @@ class FontFallback extends React.Component {
     }
 
     render () {
-        const {intl} = this.props;
         return (
             <div className={styles.fallbackContainer}>
                 <div className={styles.fallbackLabel}>
@@ -92,7 +55,7 @@ class FontFallback extends React.Component {
                                 if (e.key === 'Enter') this.handleClick(family);
                             }}
                         >
-                            <span>{intl.formatMessage(messages[family])}</span>
+                            <span>{family}</span>
                             {this.props.fallback === family && (
                                 <span className={styles.fallbackCheckmark}>{'✓'}</span>
                             )}
@@ -107,9 +70,8 @@ class FontFallback extends React.Component {
 FontFallback.DEFAULT = 'Sans Serif';
 
 FontFallback.propTypes = {
-    intl: intlShape,
     fallback: PropTypes.string.isRequired,
     onChange: PropTypes.func.isRequired
 };
 
-export default injectIntl(FontFallback);
+export default FontFallback;

@@ -369,6 +369,49 @@ const alerts = [
         ),
         iconSpinner: true,
         level: AlertLevels.SUCCESS
+    },
+    {
+        alertId: 'listImportError',
+        clearList: ['listImportError'],
+        closeButton: true,
+        content: (
+            <FormattedMessage
+                defaultMessage="The list could not be imported. Check the file and column number, then try again."
+                description="Message indicating that a list monitor import failed"
+                id="gui.monitors.listImportError"
+            />
+        ),
+        level: AlertLevels.WARN
+    },
+    {
+        alertId: 'backpackSaved',
+        alertType: AlertTypes.INLINE,
+        clearList: ['backpackSaved', 'backpackInserted'],
+        content: (
+            <FormattedMessage
+                defaultMessage="Saved to your backpack."
+                description="Message shown after something is saved to the backpack"
+                id="mw.alerts.backpackSaved"
+            />
+        ),
+        iconURL: successImage,
+        level: AlertLevels.SUCCESS,
+        maxDisplaySecs: 3
+    },
+    {
+        alertId: 'backpackInserted',
+        alertType: AlertTypes.INLINE,
+        clearList: ['backpackSaved', 'backpackInserted'],
+        content: (
+            <FormattedMessage
+                defaultMessage="Added from your backpack."
+                description="Message shown after a backpack item is added to the project"
+                id="mw.alerts.backpackInserted"
+            />
+        ),
+        iconURL: successImage,
+        level: AlertLevels.SUCCESS,
+        maxDisplaySecs: 3
     }
 ];
 

@@ -243,6 +243,43 @@
   background: var(--ui-black-transparent);
 }
 
+.mw-vm-monitor {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 0.15rem;
+  padding: 0.2rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary, #575e75);
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.mw-vm-monitor:hover {
+  background: var(--ui-black-transparent);
+  opacity: 0.75;
+}
+
+.mw-vm-monitor[data-monitored="true"] {
+  opacity: 1;
+  color: var(--looks-secondary, #855cd6);
+}
+
+.mw-vm-monitor:focus-visible {
+  outline: 2px solid var(--looks-secondary, #855cd6);
+  outline-offset: 1px;
+}
+
+.mw-vm-monitor svg {
+  width: 100%;
+  height: 100%;
+}
+
 .mw-vm-icon {
   flex-shrink: 0;
   width: 0.9rem;

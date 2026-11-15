@@ -1,11 +1,8 @@
-import {Rotur, resolvePermissions} from 'rotur-sdk';
-import {getItem as getStorageItem} from '../utils/safe-storage.js';
-import {
-    getRoturSettings,
-    formatActivityTitle,
-    formatActivityStatus
-} from './settings.js';
+// Bilup Accounts integration is disabled: no rotur-sdk dependency.
+// All methods are stubbed to the "not logged in" path so downstream UI
+// automatically degrades (no sessions, no notifications, no credits).
 
+<<<<<<< eea4f3f
 const TOKEN_KEY = 'mw:rotur-token';
 const REQUIRED_PERMISSIONS = [
     ...resolvePermissions([
@@ -24,39 +21,32 @@ const LOGIN_PERMISSIONS = [...REQUIRED_PERMISSIONS, PRESENCE_PERMISSION];
 const ACTIVITY_ID = 'PineWarp';
 const APP_URL = 'https://com.pinewarp.org/';
 const APP_IMAGE = 'https://raw.githubusercontent.com/PineWarp/desktop/master/art/icon.png';
+=======
+const ACTIVITY_ID = 'Bilup';
+const APP_URL = 'https://com.bilup.org/';
+const APP_IMAGE = 'https://raw.githubusercontent.com/Bilup/desktop/master/art/icon.png';
+>>>>>>> bilup/develop
 
-/** @type {Rotur|null} */
+const createStubClient = () => ({
+    loggedIn: false,
+    token: null,
+    socket: null,
+    me: {},
+    notifications: {},
+    setToken: () => {},
+    logout: () => {},
+    connectSocket: async () => {},
+    login: async () => {}
+});
+
+/** @type {ReturnType<typeof createStubClient>|null} */
 let client = null;
-const notificationListeners = new Set();
-const notificationRemovalListeners = new Set();
-let notificationSocketListener = null;
-let notificationRemovalSocketListener = null;
 
 const getClient = () => {
     if (!client) {
-        client = new Rotur();
+        client = createStubClient();
     }
     return client;
-};
-
-const loadStoredToken = () => {
-    try {
-        return getStorageItem(TOKEN_KEY);
-    } catch (_) {
-        return null;
-    }
-};
-
-const storeToken = token => {
-    try {
-        if (token) {
-            localStorage.setItem(TOKEN_KEY, token);
-        } else {
-            localStorage.removeItem(TOKEN_KEY);
-        }
-    } catch (_) {
-        // ignore private-mode / quota failures
-    }
 };
 
 /**
@@ -68,6 +58,7 @@ const getAvatarUrl = username => (
     `https://avatars.accounts.pinewarp.org/${encodeURIComponent(String(username).toLowerCase())}`
 );
 
+<<<<<<< eea4f3f
 /**
  * Normalize me.get() / profile payloads into a stable shape.
  * @param {object} data - Raw profile payload
@@ -186,38 +177,20 @@ const writeRestoreCache = (token, user) => {
     }
 };
 
+=======
+>>>>>>> bilup/develop
 /** Restore a previous session from localStorage. */
-const restoreSession = async () => {
-    const token = loadStoredToken();
-    if (!token) {
-        return null;
-    }
-    const rotur = getClient();
-    rotur.setToken(token);
-    const cached = readRestoreCache(token);
-    if (cached) {
-        return cached;
-    }
-    const [user, hasPermissions] = await Promise.all([fetchCurrentUser(), tokenHasRequiredPermissions()]);
-    if (!user || !hasPermissions) {
-        rotur.logout();
-        storeToken(null);
-        return null;
-    }
-    storeToken(rotur.token);
-    writeRestoreCache(rotur.token, user);
-    return user;
-};
+const restoreSession = async () => null;
 
 const buildAuthUrl = (returnTo = (typeof window === 'undefined' ? '' : window.location.href)) => {
     const params = new URLSearchParams({
         system: 'web',
-        return_to: returnTo,
-        requires: LOGIN_PERMISSIONS.join(',')
+        return_to: returnTo
     });
     return `https://accounts.pinewarp.org/auth?${params.toString()}`;
 };
 
+<<<<<<< eea4f3f
 /** Open the PineWarp Accounts login flow (popup, with iframe fallback for Electron). */
 const login = async () => {
     const rotur = getClient();
@@ -233,264 +206,59 @@ const login = async () => {
     }
     writeRestoreCache(rotur.token, user);
     return user;
+=======
+/** Open the Bilup Accounts login flow (disabled). */
+const login = async () => {
+    const error = new Error('登录已禁用');
+    error.needsReauth = true;
+    throw error;
+>>>>>>> bilup/develop
 };
 
-const clearActivity = () => {
-    const rotur = getClient();
-    if (!rotur.loggedIn || !rotur.socket) {
-        return;
-    }
-    try {
-        if (typeof rotur.socket.removeActivity === 'function') {
-            rotur.socket.removeActivity(ACTIVITY_ID);
-        } else if (typeof rotur.socket.clearActivity === 'function') {
-            rotur.socket.clearActivity(ACTIVITY_ID);
-        }
-    } catch (_) {
-        // ignore
-    }
-};
+const clearActivity = () => {};
 
 const logout = () => {
-    clearActivity();
-    const rotur = getClient();
-    if (notificationSocketListener) {
-        if (rotur.socket && typeof rotur.socket.off === 'function') {
-            rotur.socket.off('notification', notificationSocketListener);
-        }
-        notificationSocketListener = null;
-    }
-    notificationListeners.clear();
-    rotur.logout();
-    storeToken(null);
-    writeRestoreCache(null, null);
+    getClient().logout();
 };
 
-const ensureSocket = async () => {
-    const rotur = getClient();
-    if (!rotur.loggedIn) {
-        return false;
-    }
-    if (rotur.socket && rotur.socket.connected) {
-        return true;
-    }
-    try {
-        await rotur.connectSocket();
-        return Boolean(rotur.socket && rotur.socket.connected);
-    } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn('[Rotur] socket connect failed', error);
-        return false;
-    }
-};
+/** Whether the current token may publish status/activity over the status socket. */
+const presenceSupported = async () => false;
 
-// Notifications are delivered canonically: type/id/timestamp/read/actor at the
-// top level, platform-specific fields inside platform_data. Lift the payload so
-// mistwarp types (love, comment, ...) and platform extras are visible to UI.
-const normalizeNotification = notification => {
-    if (!notification || typeof notification !== 'object') {
-        return notification;
-    }
-    const pd = notification.platform_data;
-    if (!pd || typeof pd !== 'object') {
-        return notification;
-    }
-    const out = {...notification};
-    for (const [k, v] of Object.entries(pd)) {
-        if (k === 'type' || k === 'id' || k === 'timestamp' || k === 'created' || k === 'read') {
-            continue;
-        }
-        out[k] = v;
-    }
-    if (out.platform === 'mistwarp' && typeof pd.type === 'string' && pd.type) {
-        out.type = pd.type;
-    }
-    return out;
-};
-
-const notifyNotificationListeners = notification => {
-    if (!notification || notification.read === true) {
-        return;
-    }
-    const normalized = normalizeNotification(notification);
-    notificationListeners.forEach(listener => {
-        try {
-            listener(normalized);
-        } catch (_) {
-            // ignore
-        }
-    });
-};
-
-const notifyRemovalListeners = payload => {
-    if (!payload || typeof payload.id !== 'string') {
-        return;
-    }
-    notificationRemovalListeners.forEach(listener => {
-        try {
-            listener(payload);
-        } catch (_) {
-            // ignore
-        }
-    });
-};
-
-const detachNotificationSocketListener = () => {
-    if (!notificationSocketListener) {
-        return;
-    }
-    const rotur = getClient();
-    if (rotur.socket && typeof rotur.socket.off === 'function') {
-        rotur.socket.off('notification', notificationSocketListener);
-        rotur.socket.off('notification_removed', notificationRemovalSocketListener);
-    }
-    notificationSocketListener = null;
-    notificationRemovalSocketListener = null;
-};
-
-const ensureNotificationSocketListener = () => {
-    const rotur = getClient();
-    if (
-        !rotur.loggedIn ||
-        !rotur.socket ||
-        (!notificationListeners.size && !notificationRemovalListeners.size) ||
-        notificationSocketListener
-    ) {
-        return;
-    }
-    if (typeof rotur.socket.on !== 'function') {
-        return;
-    }
-    notificationSocketListener = payload => notifyNotificationListeners(payload);
-    notificationRemovalSocketListener = payload => notifyRemovalListeners(payload);
-    rotur.socket.on('notification', notificationSocketListener);
-    rotur.socket.on('notification_removed', notificationRemovalSocketListener);
-};
-
-const subscribeNotifications = listener => {
-    if (typeof listener !== 'function') {
-        return () => {};
-    }
-    notificationListeners.add(listener);
-    if (getClient().loggedIn) {
-        ensureSocket()
-            .then(ensureNotificationSocketListener)
-            .catch(() => {});
-    }
-    return () => {
-        notificationListeners.delete(listener);
-        if (!notificationListeners.size && !notificationRemovalListeners.size) {
-            detachNotificationSocketListener();
-        }
-    };
-};
-
-const subscribeNotificationRemovals = listener => {
-    if (typeof listener !== 'function') {
-        return () => {};
-    }
-    notificationRemovalListeners.add(listener);
-    if (getClient().loggedIn) {
-        ensureSocket()
-            .then(ensureNotificationSocketListener)
-            .catch(() => {});
-    }
-    return () => {
-        notificationRemovalListeners.delete(listener);
-        if (!notificationListeners.size && !notificationRemovalListeners.size) {
-            detachNotificationSocketListener();
-        }
-    };
-};
+const subscribeNotifications = () => () => {};
+const subscribeNotificationRemovals = () => () => {};
 
 /**
+<<<<<<< eea4f3f
  * Publish PineWarp editing presence.
  * Title/status are fixed strings; edit duration uses start_time only.
  * @param {object|string} projectTitleOrCtx - Project title or activity context.
  * @param {object} [extra] - Extra activity fields.
+=======
+ * Publish Bilup editing presence (disabled).
+>>>>>>> bilup/develop
  */
-const syncActivity = async (projectTitleOrCtx, extra = {}) => {
-    const rotur = getClient();
-    if (!rotur.loggedIn) {
-        return;
-    }
-
-    const settings = getRoturSettings();
-    if (!settings.presenceEnabled) {
-        clearActivity();
-        return;
-    }
-
-    if (!rotur.socket) {
-        return;
-    }
-    if (!(await ensureSocket())) {
-        return;
-    }
-
-    const ctx = typeof projectTitleOrCtx === 'object' && projectTitleOrCtx !== null ?
-        {...projectTitleOrCtx} :
-        {projectTitle: projectTitleOrCtx, ...extra};
-
-    if (typeof ctx.editingSince !== 'number') {
-        ctx.editingSince = Date.now();
-    }
-
-    const title = formatActivityTitle(ctx);
-    const status = formatActivityStatus(ctx);
-
-    const activity = {
-        id: ACTIVITY_ID,
-        title,
-        status,
-        image: APP_IMAGE,
-        url: ctx.url || APP_URL,
-        application: {
-            name: ACTIVITY_ID,
-            url: ctx.url || APP_URL
-        }
-    };
-    if (settings.includeEditDuration) {
-        activity.start_time = ctx.editingSince;
-    }
-
-    try {
-        if (typeof rotur.socket.addActivity === 'function') {
-            rotur.socket.addActivity(activity);
-            return;
-        }
-        if (typeof rotur.socket.setPlaying === 'function') {
-            rotur.socket.setPlaying(ACTIVITY_ID, {
-                title,
-                status,
-                image: APP_IMAGE,
-                url: APP_URL
-            });
-        }
-    } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn('[Rotur] Failed to sync activity', error);
-    }
-};
+const syncActivity = async () => {};
 
 const isLoggedIn = () => getClient().loggedIn;
 const getRotur = () => getClient();
 
-// Notifications live on Rotur; the backend only posts them there. Fetch them
-// with the user's own token so each account sees its own notifications.
-const fetchNotifications = async afterDays => {
-    const rotur = getClient();
-    if (!rotur.loggedIn) {
-        return [];
-    }
-    try {
-        const list = await rotur.notifications.list(afterDays);
-        return Array.isArray(list) ? list.map(normalizeNotification) : [];
-    } catch (_) {
-        return [];
-    }
+const fetchNotifications = async () => [];
+
+const markNotificationsRead = async () => false;
+
+const ensureScopes = async () => false;
+
+const getBalance = async () => null;
+
+const getAccountSummary = async () => null;
+
+const payUser = async () => {
+    const error = new Error('Log in to send credits');
+    error.needsReauth = true;
+    throw error;
 };
 
+<<<<<<< eea4f3f
 const markNotificationsRead = async () => {
     const rotur = getClient();
     if (!rotur.loggedIn) {
@@ -626,26 +394,15 @@ const payUser = async (to, amount, note) => {
 // Claim the account's daily credits. Throws on failure; the error carries
 // needsReauth when the token lacks the credits:daily permission, and waitHours
 // when the daily claim is not yet available.
+=======
+>>>>>>> bilup/develop
 const claimDaily = async () => {
-    const rotur = getClient();
-    if (!rotur.loggedIn) {
-        const error = new Error('Log in to claim daily credits');
-        error.needsReauth = true;
-        throw error;
-    }
-    const result = await rotur.me.claimDaily();
-    if (result && result.error) {
-        const error = new Error(result.error);
-        if (isPaymentPermissionError(result.error)) {
-            error.needsReauth = true;
-        }
-        if (result.wait_hours) {
-            error.waitHours = result.wait_hours;
-        }
-        throw error;
-    }
-    return result;
+    const error = new Error('Log in to claim daily credits');
+    error.needsReauth = true;
+    throw error;
 };
+
+const fetchCurrentUser = async () => null;
 
 export {
     ACTIVITY_ID,

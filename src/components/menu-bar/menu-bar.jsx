@@ -45,12 +45,10 @@ import TWViewCounter from './tw-view-counter.jsx';
 
 import ChangeUsername from '../../containers/tw-change-username.jsx';
 import CloudVariablesToggler from '../../containers/tw-cloud-toggler.jsx';
-import TWSaveStatus from './tw-save-status.jsx';
 import TWNews from './tw-news.jsx';
 import CollaborationContainer from '../../containers/collaboration-container.jsx';
 
 import TWDesktopSettings from './tw-desktop-settings.jsx';
-import RoturAccount from './mw-rotur-account.jsx';
 import MwEditorNav from './mw-editor-nav.jsx';
 import CollabPresence from './mw-collab-presence.jsx';
 
@@ -150,7 +148,7 @@ import {
 } from '../../lib/mw/workspace-bookmarks.js';
 
 import styles from './menu-bar.css';
-import '!!style-loader!css-loader!./block-count.css';
+import blockCountStyles from './block-count-window.css';
 
 // import helpIcon from '../../lib/assets/icon--tutorials.svg';
 // import mystuffIcon from './icon--mystuff.png';
@@ -170,6 +168,7 @@ import {
     Save, ArchiveRestore, UserPen, Cloud, PackagePlus, Puzzle,
     Bookmark, GitBranch, FileCog, Bug, Database, Undo, Redo, Handshake, Wrench, Send,
     Download, AppWindow, Computer, Shield, Code, Code2, TerminalSquare, ChartColumn, ListTodo,
+    FolderOpen,
     Blocks as BlocksIcon, Menu as MenuIcon, Globe, ExternalLink, Pause, Play, HelpCircle
 } from 'lucide-react';
 
@@ -323,6 +322,13 @@ const addonMessage = (intl, addonId) => (id, values) => {
         defaultMessage
     }, values);
 };
+// 动态键（如扩展分类）在语言包中可能不存在，需要先判断再决定是否使用翻译
+const addonHasMessage = (intl, addonId) => id => {
+    const key = `${addonId}/${id}`;
+    const locale = intl && intl.locale ? intl.locale.toLowerCase() : 'en';
+    const localeMessages = ADDON_L10N[locale];
+    return Boolean((localeMessages && localeMessages[key]) || addonEnglish[key]);
+};
 
 class MenuBar extends React.Component {
     constructor(props) {
@@ -417,6 +423,7 @@ class MenuBar extends React.Component {
                 display: this.blockCountRef.current,
                 getSetting: getMenuBarSetting,
                 getBlockly: this.ensureScratchBlocks,
+                hasMessage: addonHasMessage(this.props.intl, 'block-count'),
                 msg: addonMessage(this.props.intl, 'block-count')
             });
         }
@@ -1463,6 +1470,7 @@ class MenuBar extends React.Component {
             this.ensureScratchBlocks().then(ScratchBlocks => {
                 const workspace = ScratchBlocks.getMainWorkspace();
                 if (workspace) {
+                    this.materializeBeforeUndoRedo(workspace);
                     workspace.undo(false);
                     this.updateUndoRedoState();
                 }
@@ -1474,10 +1482,21 @@ class MenuBar extends React.Component {
             this.ensureScratchBlocks().then(ScratchBlocks => {
                 const workspace = ScratchBlocks.getMainWorkspace();
                 if (workspace) {
+                    this.materializeBeforeUndoRedo(workspace);
                     workspace.undo(true);
                     this.updateUndoRedoState();
                 }
             });
+        }
+    }
+    // Undo and redo look blocks up by id. Blocks in scripts the lazy loader has
+    // not rendered do not exist yet, so the event would be skipped silently and
+    // the VM would drift away from what is on screen. Render everything first.
+    materializeBeforeUndoRedo(workspace) {
+        if (workspace.getUnloadedBlockCount &&
+            workspace.getUnloadedBlockCount() > 0 &&
+            workspace.materializeAllScripts) {
+            workspace.materializeAllScripts();
         }
     }
     updateUndoRedoState() {
@@ -1763,9 +1782,10 @@ class MenuBar extends React.Component {
                                     )}
                                     {this.props.roturReady ? (
                                         <MenuSection>
-                                            {mistwarpAction ? (
+                                            {mistwarpAction === 'remix' ? (
                                                 <MenuItem onClick={this.handleClickMistWarpShare}>
                                                     <Globe />
+<<<<<<< eea4f3f
                                                     {mistwarpAction === 'remix' ? (
                                                         <FormattedMessage
                                                             defaultMessage="Remix to PineWarp"
@@ -1779,6 +1799,13 @@ class MenuBar extends React.Component {
                                                             id="mw.menuBar.share"
                                                         />
                                                     )}
+=======
+                                                    <FormattedMessage
+                                                        defaultMessage="Remix to Bilup"
+                                                        description="File menu item to remix a Bilup project"
+                                                        id="mw.menuBar.remix"
+                                                    />
+>>>>>>> bilup/develop
                                                 </MenuItem>
                                             ) : null}
                                             {this.state.mistwarpProject ? (
@@ -2262,8 +2289,13 @@ class MenuBar extends React.Component {
                                         />
                                     </MenuItem>
                                 </MenuSection>
+<<<<<<< eea4f3f
                                 {window.__pinewarpDebuggerToggle || window.__pinewarpVariableManagerToggle ||
                                     window.__pinewarpPerfToggle ? (
+=======
+                                {window.__bilupDebuggerToggle || window.__bilupVariableManagerToggle ||
+                                    window.__bilupProjectAssetsManagerToggle ? (
+>>>>>>> bilup/develop
                                     <MenuSection>
                                         {window.__pinewarpPerfToggle && (
                                             <MenuItem
@@ -2295,10 +2327,20 @@ class MenuBar extends React.Component {
                                                 />
                                             </MenuItem>
                                         )}
+<<<<<<< eea4f3f
                                         {window.__pinewarpVariableManagerToggle && (
                                             <MenuItem
                                                 onClick={() => {
                                                     window.__pinewarpVariableManagerToggle();
+=======
+                                        {(window.__mistwarpVariableManagerToggle ||
+                                            window.__bilupVariableManagerToggle) && (
+                                            <MenuItem
+                                                onClick={() => {
+                                                    const toggle = window.__mistwarpVariableManagerToggle ||
+                                                        window.__bilupVariableManagerToggle;
+                                                    toggle();
+>>>>>>> bilup/develop
                                                     this.props.onRequestCloseTools();
                                                 }}
                                             >
@@ -2307,6 +2349,21 @@ class MenuBar extends React.Component {
                                                     defaultMessage="Variable Manager"
                                                     description="Menu bar item to toggle the variable manager"
                                                     id="tw.menuBar.variableManager"
+                                                />
+                                            </MenuItem>
+                                        )}
+                                        {window.__bilupProjectAssetsManagerToggle && (
+                                            <MenuItem
+                                                onClick={() => {
+                                                    window.__bilupProjectAssetsManagerToggle();
+                                                    this.props.onRequestCloseTools();
+                                                }}
+                                            >
+                                                <FolderOpen />
+                                                <FormattedMessage
+                                                    defaultMessage="Project Assets Manager"
+                                                    description="Menu bar item to toggle the project assets manager"
+                                                    id="tw.menuBar.projectAssets"
                                                 />
                                             </MenuItem>
                                         )}
@@ -2434,9 +2491,10 @@ class MenuBar extends React.Component {
                     )}
                     {!this.props.isPlayerOnly && (
                         <button
-                            className="sa-block-count-display"
+                            className={blockCountStyles['sa-block-count-display']}
                             data-mw-item="block-count"
                             ref={this.blockCountRef}
+                            type="button"
                         />
                     )}
 
@@ -2528,14 +2586,6 @@ class MenuBar extends React.Component {
                     data-mw-item="__account-group"
                     className={styles.accountInfoGroup}
                 >
-                    <div
-                        data-mw-item="save-status"
-                        className={styles.menuBarLayoutItem}
-                    >
-                        <TWSaveStatus
-                            showSaveFilePicker={this.props.showSaveFilePicker}
-                        />
-                    </div>
                     {aboutButton && (
                         <div
                             data-mw-item="about"
@@ -2555,12 +2605,6 @@ class MenuBar extends React.Component {
                         className={styles.menuBarLayoutItem}
                     >
                         <MwEditorNav />
-                    </div>
-                    <div
-                        data-mw-item="rotur-account"
-                        className={classNames(styles.menuBarLayoutItem, styles.roturAccountSlot)}
-                    >
-                        <RoturAccount />
                     </div>
                 </div>
             </Box>

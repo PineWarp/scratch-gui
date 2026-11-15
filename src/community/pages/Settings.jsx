@@ -1,17 +1,15 @@
 import React, {useState, useEffect} from 'react';
 import {getItem as getStorageItem} from '../../lib/utils/safe-storage.js';
 import {useIntl} from '../../lib/tw-use-intl.jsx';
-import {Menu, Palette, Radio, Store, SwatchBook, User, Brush} from 'lucide-react';
+import {Menu, Palette, SwatchBook, Brush} from 'lucide-react';
 import {applyTheme, detectTheme} from '../../lib/themes/themePersistance.js';
 import {ThemeAccentPanel} from '../../components/tw-settings-modal/theme-accent-panel.jsx';
 import CustomThemesPage from '../../components/tw-settings-modal/custom-themes-page.jsx';
+<<<<<<< eea4f3f
 import PineWarpThemePanel from '../components/WarpThemePanel.jsx';
+=======
+>>>>>>> bilup/develop
 import Sidebar from '../components/Sidebar.jsx';
-import {useUser} from '../UserContext.jsx';
-import {
-    getUsernameOverride,
-    setUsernameOverride
-} from '../../lib/rotur/cloud-sync.js';
 import {
     getAccentMenuBar,
     setAccentMenuBar,
@@ -19,9 +17,6 @@ import {
     setMenuBarText,
     MENU_BAR_TEXT_OPTIONS
 } from '../../lib/themes/menu-bar-accent.js';
-import {getRoturSettings, updateRoturSettings} from '../../lib/rotur/settings.js';
-import {presenceSupported} from '../../lib/rotur/client.js';
-import isScratchDesktop from '../../lib/utils/isScratchDesktop.js';
 import styles from './Settings.module.css';
 
 const PROJECT_THEME_MODE_KEY = 'mw:project-theme-mode';
@@ -43,6 +38,7 @@ const ALL_SECTIONS = [
     {key: 'theme', labelKey: 'mw.community.settings.section.theme', labelDefault: 'Theme', icon: Palette},
     {key: 'project-themes', labelKey: 'mw.community.settings.section.project-themes', labelDefault: 'Project themes', icon: Brush},
     {key: 'custom-themes', labelKey: 'mw.community.settings.section.custom-themes', labelDefault: 'Custom themes', icon: SwatchBook},
+<<<<<<< eea4f3f
     {key: 'pinewarptheme', labelKey: 'mw.community.settings.section.pinewarptheme', labelDefault: 'PineWarpTheme', icon: Store},
     {key: 'menu-bar', labelKey: 'mw.community.settings.section.menu-bar', labelDefault: 'Menu bar', icon: Menu},
     {key: 'presence', labelKey: 'mw.community.settings.section.presence', labelDefault: 'Presence', icon: Radio},
@@ -51,51 +47,27 @@ const ALL_SECTIONS = [
 
 const DESKTOP_HIDDEN_SECTIONS = new Set(['pinewarptheme', 'identity', 'presence']);
 
+=======
+    {key: 'menu-bar', labelKey: 'mw.community.settings.section.menu-bar', labelDefault: 'Menu bar', icon: Menu}
+];
+
+>>>>>>> bilup/develop
 const MENU_BAR_TEXT_LABEL_KEYS = {
     auto: 'mw.community.settings.menuBarText.auto',
     light: 'mw.community.settings.menuBarText.light',
     dark: 'mw.community.settings.menuBarText.dark'
 };
 
-const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
+const Settings = () => {
     const intl = useIntl();
     const t = (id, defaultMessage, values) => intl.formatMessage({id, defaultMessage}, values);
-    const {user, login, logout} = useUser();
-    const desktopApp = Boolean(desktop);
     const sections = ALL_SECTIONS
-        .filter(section => !desktopApp || !DESKTOP_HIDDEN_SECTIONS.has(section.key))
         .map(section => ({...section, label: t(section.labelKey, section.labelDefault)}));
     const [theme, setTheme] = useState(detectTheme());
-    const [username, setUsername] = useState(getUsernameOverride() || '');
     const [accentMenuBar, setAccentMenuBarState] = useState(getAccentMenuBar());
     const [menuBarText, setMenuBarTextState] = useState(getMenuBarText());
-    const [presence, setPresence] = useState(getRoturSettings());
     const [projectThemeMode, setProjectThemeMode] = useState(getProjectThemeMode());
     const [activeSection, setActiveSection] = useState(sections[0].key);
-    const [presenceOk, setPresenceOk] = useState(true);
-
-    useEffect(() => {
-        if (!user) {
-            setPresenceOk(true);
-            return;
-        }
-        let cancelled = false;
-        presenceSupported().then(supported => {
-            if (!cancelled) setPresenceOk(supported);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [user]);
-
-    const reloginForPresence = async () => {
-        try {
-            await logout();
-            await login();
-        } catch (e) {
-            // ignore
-        }
-    };
 
     const changeProjectThemeMode = value => {
         setProjectThemeMode(value);
@@ -108,20 +80,13 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
 
     useEffect(() => {
         setTheme(detectTheme());
-        setUsername(getUsernameOverride() || '');
         setAccentMenuBarState(getAccentMenuBar());
         setMenuBarTextState(getMenuBarText());
-        setPresence(getRoturSettings());
-    }, [user]);
+    }, []);
 
     const applyAndPersist = next => {
         applyTheme(next);
         setTheme(detectTheme());
-    };
-
-    const changeUsername = value => {
-        setUsername(value);
-        setUsernameOverride(value || null);
     };
     const changeAccentMenuBar = enabled => {
         setAccentMenuBar(enabled);
@@ -133,15 +98,7 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
         setMenuBarTextState(value);
         applyTheme(detectTheme());
     };
-    const changePresence = (key, enabled) => {
-        updateRoturSettings({[key]: enabled});
-        setPresence(current => ({...current, [key]: enabled}));
-    };
 
-    const presenceLabels = {
-        presenceEnabled: t('mw.community.settings.presenceEnabled', 'Share editor presence'),
-        includeEditDuration: t('mw.community.settings.includeEditDuration', 'Include edit duration')
-    };
     const menuBarTextLabel = option => t(
         MENU_BAR_TEXT_LABEL_KEYS[option] || 'mw.community.settings.menuBarText.auto',
         option[0].toUpperCase() + option.slice(1)
@@ -179,6 +136,7 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
                             <CustomThemesPage
                                 theme={theme}
                                 onChangeTheme={applyAndPersist}
+<<<<<<< eea4f3f
                                 onOpenWarpThemeMarketplace={desktopApp ? null : () => setActiveSection('pinewarptheme')}
                             />
                         </section>
@@ -190,6 +148,8 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
                             <PineWarpThemePanel
                                 theme={theme}
                                 onThemeChange={applyAndPersist}
+=======
+>>>>>>> bilup/develop
                             />
                         </section>
                     ) : null}
@@ -228,6 +188,7 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
                         </section>
                     ) : null}
 
+<<<<<<< eea4f3f
                     {activeSection === 'presence' ? (
                         <section className={styles.card}>
                             <h2>{t('mw.community.settings.presence', 'Presence')}</h2>
@@ -269,6 +230,8 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
                         </section>
                     ) : null}
 
+=======
+>>>>>>> bilup/develop
                     {activeSection === 'project-themes' ? (
                         <section className={styles.card}>
                             <h2>{t('mw.community.settings.projectThemes', 'Project themes')}</h2>
@@ -293,6 +256,7 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
                             </label>
                         </section>
                     ) : null}
+<<<<<<< eea4f3f
 
                     {activeSection === 'identity' ? (
                         <section className={styles.card}>
@@ -320,6 +284,8 @@ const Settings = ({isScratchDesktop: desktop = isScratchDesktop()}) => {
                                 'Sign in to sync your settings across devices through your PineWarp Accounts account.')}
                         </p>
                     ) : null}
+=======
+>>>>>>> bilup/develop
                 </div>
             </div>
         </main>

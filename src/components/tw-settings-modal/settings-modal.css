@@ -1,4 +1,4 @@
-﻿@import "../../css/colors.css";
+@import "../../css/colors.css";
 @import "../../css/filters.css";
 @import "../../css/default-colors.css";
 
@@ -30,6 +30,32 @@
     flex: 1;
     padding: 1.5rem 2rem;
     overflow-y: auto;
+}
+
+/* 按需加载页面的占位：极轻的纯 CSS 转圈，不引入任何组件依赖 */
+.pageLoading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 120px;
+}
+
+.pageLoadingSpinner {
+    width: 22px;
+    height: 22px;
+    box-sizing: border-box;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    opacity: 0.5;
+    animation: pageLoadingSpin 0.7s linear infinite;
+}
+
+@keyframes pageLoadingSpin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* For small screens, such as in the embed */
@@ -260,6 +286,8 @@
 }
 
 .menu-bar-grip {
+    display: flex;
+    align-items: center;
     cursor: grab;
     color: color-mix(in srgb, $text-primary 55%, transparent);
     flex-shrink: 0;
@@ -267,6 +295,34 @@
 
 .menu-bar-row-label {
     flex: 1;
+}
+
+.menu-bar-move-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.menu-bar-move-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 1px solid $ui-black-transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: $text-primary;
+    cursor: pointer;
+}
+
+.menu-bar-move-button:hover:not(:disabled) {
+    background: $ui-black-transparent;
+}
+
+.menu-bar-move-button:disabled {
+    opacity: 0.35;
+    cursor: default;
 }
 
 .setting table {
@@ -610,6 +666,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    zoom: 0.9;
 }
 
 .ct-tabs {
@@ -646,14 +703,16 @@
     color: $text-primary;
 }
 
+/* 选中态要实心强调色底 + accent-foreground 文字：原来写成 $looks-transparent（35% 强调色叠在
+   $ui-primary 上）+ white，浅色主题下就是浅底白字，整段看不见。 */
 .ct-tab-selected {
-    background: $looks-transparent;
-    color: white;
+    background: $looks-secondary;
+    color: $accent-foreground;
 }
 
 .ct-tab-selected:hover {
-    background: $looks-transparent;
-    color: white;
+    background: $looks-secondary;
+    color: $accent-foreground;
 }
 
 .ct-tab-badge {
@@ -668,7 +727,7 @@
 }
 
 .ct-tab-selected .ct-tab-badge {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, $accent-foreground 22%, transparent);
 }
 
 .ct-status {
@@ -897,14 +956,15 @@
     color: $text-primary;
 }
 
+/* 同 .ct-tab-selected：全选中的模式按钮也要实心强调色底 */
 .ct-mode-btn-selected {
-    background: $looks-transparent;
-    color: white;
+    background: $looks-secondary;
+    color: $accent-foreground;
 }
 
 .ct-mode-btn-selected:hover {
-    background: $looks-transparent;
-    color: white;
+    background: $looks-secondary;
+    color: $accent-foreground;
 }
 
 .ct-panel {
@@ -1189,4 +1249,56 @@
         text-align: left;
         cursor: pointer;
     }
+}
+
+.sidebarSearch {
+    position: relative;
+    padding: 0.75rem 0.75rem 0.25rem;
+}
+
+.sidebarSearchIcon {
+    position: absolute;
+    left: 1.4rem;
+    top: calc(50% + 0.25rem);
+    transform: translateY(-50%);
+    color: color-mix(in srgb, $text-primary 45%, transparent);
+    pointer-events: none;
+}
+
+.sidebarSearchInput {
+    box-sizing: border-box;
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 0.75rem 0 2.1rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    color: $text-primary;
+    background: $ui-primary;
+    border: 1px solid $ui-black-transparent;
+    border-radius: 6px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sidebarSearchInput[type="search"] {
+    box-sizing: border-box;
+}
+
+.sidebarSearchInput:focus {
+    outline: none;
+    border-color: $looks-secondary;
+    box-shadow: 0 0 0 2px $looks-transparent;
+}
+
+.sidebarNoResults {
+    margin: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+    color: color-mix(in srgb, $text-primary 60%, transparent);
+}
+
+.menuBarSettingRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
 }

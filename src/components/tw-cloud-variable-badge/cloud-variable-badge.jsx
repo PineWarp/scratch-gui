@@ -8,10 +8,13 @@ import {APP_NAME} from '../../lib/constants/brand';
 
 const hosts = [
     {
+<<<<<<< eea4f3f
         name: 'Hong Kong (PineWarp)',
         cloudHost: 'wss://clouddata.pinewarp.org'
     },
     {
+=======
+>>>>>>> bilup/develop
         name: 'US East (TurboWarp)',
         cloudHost: 'wss://clouddata.turbowarp.org'
     },

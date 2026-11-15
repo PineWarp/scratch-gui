@@ -72,8 +72,10 @@ const createBlockHelpers = (vm, msg) => {
         const workspace = ScratchBlocks.getMainWorkspace();
         if (!workspace) return;
         const block = workspace.getBlockById(blockId);
-        if (!block) return;
-        if (block.workspace.isFlyout) return;
+        // A script the lazy loader has not rendered yet has no block object.
+        // scrollBlockIntoView knows how to scroll to its placeholder, which is
+        // what makes the loader render it so it can be flashed.
+        if (block && block.workspace.isFlyout) return;
         new Utils(vm, ScratchBlocks).scrollBlockIntoView(blockId);
     };
 

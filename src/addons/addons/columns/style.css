@@ -1,25 +1,41 @@
 [class*="blocks_blocks_"] .blocklyToolboxDiv {
   width: 310px;
   height: auto !important;
+  /* 为下方整行的“添加扩展”按钮预留空间 */
+  padding-bottom: 2.25rem;
 }
 
-.scratchCategoryMenu {
+/* 两张分类表都会命中 scratchCategoryMenu：核心样式为底部按钮预留的
+   padding-bottom / margin-bottom 在本插件中会变成分类之间的空隙，这里清掉。 */
+[class*="blocks_blocks_"] .scratchCategoryMenu {
   width: 100%;
   columns: 2;
   column-gap: 0.5rem;
+  margin-bottom: 0;
   padding: 0.25rem;
 }
 
+/* 扩展分类 */
 .scratchCategorySecondMenu {
   columns: 1;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  padding-bottom: 2.25rem;
+  /* 扩展过多时像角色列表一样在固定高度内滚动（5 行 × 28px + 上下内边距） */
+  max-height: 9.25rem;
+  overflow-y: auto;
+}
+
+.scratchCategorySecondMenu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scratchCategorySecondMenu::-webkit-scrollbar-thumb {
+  background-color: var(--editorDarkMode-selector2-compactScrollbar, #b4bcc9);
+  border-radius: 4px;
 }
 
 .scratchCategorySecondMenu:empty {
-  padding-top: 0;
-  padding-bottom: 2rem;
+  display: none;
 }
 
 .scratchCategoryMenuItem {
@@ -41,50 +57,57 @@
   align-items: center;
 }
 
-[class*="gui_extension-button-container_"] {
-  top: var(--sa-add-extension-button-y);
+/* “添加扩展”按钮：由左下角方块按钮改为分类菜单下方的整行按钮 */
+[data-palette-footer] {
+  top: var(--sa-add-extension-button-y, calc(100% - 3rem));
   bottom: auto;
-  margin-inline-start: 0.5rem;
-  width: calc(308px - 1rem);
-  height: calc(1.75rem - 2px);
+  left: 0.25rem;
+  width: calc(310px - 0.5rem);
+  height: 1.75rem;
+  box-sizing: border-box;
+  flex-direction: row;
   background-color: transparent;
-  border-color: var(--editorDarkMode-border, rgba(0, 0, 0, 0.15));
+  border: 1px solid var(--ui-black-transparent, rgba(0, 0, 0, 0.15));
+  border-radius: 0.25rem;
+  color: var(--editorDarkMode-categoryMenu-text, #575e75);
 }
 
 /* [dir] is for specificity to override editor-stage-left */
-[dir] [class*="gui_extension-button-container_"] {
+[dir] [data-palette-footer] {
   border-radius: 0.25rem;
 }
 
-[class*="gui_extension-button-container_"]:hover {
-  background-color: var(--editorDarkMode-accent, white);
+[data-palette-footer]:hover {
+  background-color: var(--ui-black-transparent, rgba(0, 0, 0, 0.15));
 }
 
-[class*="gui_extension-button-container_"]::before {
+[data-palette-footer]::before {
   display: none;
 }
 
-[class*="gui_extension-button_"] {
+/* 分类菜单里只保留“添加扩展”，积木搜索仍在顶部标签栏 */
+[data-palette-footer] > button:not([data-extension-button]) {
+  display: none;
+}
+
+[data-extension-button] {
   display: flex;
   align-items: center;
-  padding-inline: 0;
+  gap: 0.25rem;
+  width: 100%;
+  height: 100%;
+  padding: 0 0.375rem;
+  border-radius: inherit;
+  color: inherit;
 }
 
-[class*="gui_extension-button-icon_"] {
-  filter: var(--editorDarkMode-categoryMenu-invertedFilter, brightness(0.4));
-}
-
-[class*="gui_extension-button-container_"]:hover [class*="gui_extension-button-icon_"] {
-  filter: var(--editorDarkMode-accent-invertedFilter, brightness(0.4));
+[class*="extension-button-icon_"] {
+  width: 1rem;
+  height: 1rem;
 }
 
 .sa-add-extension-label {
-  color: var(--editorDarkMode-categoryMenu-text, #575e75);
-  font-size: 0.65rem;
-}
-
-[class*="gui_extension-button-container_"]:hover .sa-add-extension-label {
-  color: var(--editorDarkMode-accent-text, #575e75);
+  color: inherit;
   font-size: 0.65rem;
 }
 

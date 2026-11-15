@@ -498,8 +498,9 @@
 }
 
 .font-item:hover {
+    /* 底色只是 35% 强调色叠在弹窗底上，不是实心强调色——不能配白字，
+       否则浅色主题下白字压在浅底上直接看不见。文字保持继承的前景色。 */
     background-color: $looks-transparent;
-    color: white;
 }
 
 .selected-fonts-list {

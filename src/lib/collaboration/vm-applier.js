@@ -258,6 +258,14 @@ class VMApplier extends OpApplier {
         // must be a no-op (at-least-once delivery during onboarding).
         const declaredId = xml.getAttribute && xml.getAttribute('id');
         if (declaredId && workspace.getBlockById(declaredId)) return;
+        // The block already exists in a script the lazy loader has not
+        // rendered yet. The VM has it and the script is rebuilt from the VM
+        // descriptions when it comes back into view, so mirroring it here
+        // would leave a second block with the same id on the workspace.
+        if (declaredId && typeof workspace.findDeferredScriptByBlockId === 'function' &&
+            workspace.findDeferredScriptByBlockId(declaredId)) {
+            return;
+        }
 
         this._withEventsDisabled(ScratchBlocks, () => {
             if (declaredId) this._currentlyCreatingBlocks.add(declaredId);
@@ -322,7 +330,18 @@ class VMApplier extends OpApplier {
                 block.moveBy(event.newCoordinate.x - currentPos.x, event.newCoordinate.y - currentPos.y);
             } else if (event.newParentId) {
                 const parentBlock = workspace.getBlockById(event.newParentId);
-                if (!parentBlock) return;
+                if (!parentBlock) {
+                    // The parent is not rendered: it belongs to a script the
+                    // virtual (deferred) loader has not materialized yet. The
+                    // copy mirrored here is then only a view duplicate of a
+                    // block the VM already has, and the loader would build it
+                    // a second time from the VM descriptions. Drop the copy;
+                    // events are off, so the VM block is untouched.
+                    if (typeof workspace.getDeferredScripts === 'function') {
+                        block.dispose(false, true);
+                    }
+                    return;
+                }
                 const blockConnection = block.outputConnection || block.previousConnection;
                 let parentConnection = null;
                 if (event.newInputName) {

@@ -1,6 +1,10 @@
 import {getVanillaPalette} from './mw-vanilla-palette';
 import {getItem as getStorageItem, setItem as setStorageItem} from './utils/safe-storage.js';
+<<<<<<< eea4f3f
 import blocksMessages from '@remixwarp/scratch-l10n/locales/blocks-msgs';
+=======
+import {applyCatBlocksToLoadedBlockly} from './mw-cat-blocks.js';
+>>>>>>> bilup/develop
 
 let _ScratchBlocks = null;
 
@@ -57,6 +61,12 @@ const load = () => {
                     zhCnBlocks || {},
                     wenyanBlocks
                 );
+            }
+
+            try {
+                applyCatBlocksToLoadedBlockly();
+            } catch (e) {
+                // ignore
             }
 
             try {

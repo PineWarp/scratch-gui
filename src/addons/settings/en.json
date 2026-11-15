@@ -35,6 +35,8 @@
   "tags.toolbox": "Toolbox",
   "tags.astraeditor": "AstraEditor",
   "tags.poorlang": "Poor Language Support",
+  "tags.developer": "Developer",
+  "tags.featured": "Featured",
   "export": "Export settings",
   "import": "Import settings",
   "unsupported": "Some addons are not available in this browser:",

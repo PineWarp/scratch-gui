@@ -11,6 +11,8 @@ import FancyCheckbox from '../tw-fancy-checkbox/checkbox.jsx';
 import {Theme, BLOCKS_CUSTOM, BLOCKS_DARK, BLOCKS_HIGH_CONTRAST, BLOCKS_THREE}
     from '../../lib/themes/index.js';
 import {PageHeader} from './theme-accent-panel.jsx';
+import {BooleanSetting} from './setting.jsx';
+import {getCatBlocks, getCatBlocksWatch, setCatBlocks, setCatBlocksWatch} from '../../lib/mw-cat-blocks.js';
 import {setTheme} from '../../reducers/theme.js';
 import {applyTheme} from '../../lib/themes/themePersistance.js';
 import {selectLocale} from '../../reducers/locales.js';
@@ -113,10 +115,65 @@ const openBlocksAddonSettings = () => {
     }
 };
 
+class CatBlocksSettings extends React.Component {
+    constructor (props) {
+        super(props);
+        this.state = {
+            enabled: getCatBlocks(),
+            watch: getCatBlocksWatch()
+        };
+        this.handleEnabledChange = this.handleEnabledChange.bind(this);
+        this.handleWatchChange = this.handleWatchChange.bind(this);
+    }
+    handleEnabledChange (e) {
+        const enabled = e.target.checked;
+        setCatBlocks(enabled);
+        this.setState({enabled});
+    }
+    handleWatchChange (e) {
+        const watch = e.target.checked;
+        setCatBlocksWatch(watch);
+        this.setState({watch});
+    }
+    render () {
+        return (
+            <React.Fragment>
+                <BooleanSetting
+                    value={this.state.enabled}
+                    onChange={this.handleEnabledChange}
+                    label={<FormattedMessage
+                        defaultMessage="Cat Hat Blocks"
+                        id="mw.settingsModal.scratchHatBlocks"
+                    />}
+                    help={<FormattedMessage
+                        defaultMessage={'Draws cat ears and a face on hat blocks, like Scratch did ' +
+                            'for April Fools\' Day 2020. Takes effect after blocks reload.'}
+                        id="mw.settingsModal.scratchHatBlocksHelp"
+                    />}
+                />
+                <BooleanSetting
+                    value={this.state.watch}
+                    onChange={this.handleWatchChange}
+                    label={<FormattedMessage
+                        defaultMessage="Cat eyes follow mouse cursor"
+                        id="mw.settingsModal.scratchHatBlocksWatch"
+                    />}
+                    help={<FormattedMessage
+                        defaultMessage={'The face on hat blocks watches the mouse cursor. ' +
+                            'This may impact performance while the editor is open.'}
+                        id="mw.settingsModal.scratchHatBlocksWatchHelp"
+                    />}
+                />
+            </React.Fragment>
+        );
+    }
+}
+
 const UnconnectedThemePage = ({theme, onChangeTheme}) => (
     <Box className={styles.body}>
         <PageHeader>
             <FormattedMessage
+<<<<<<< eea4f3f
                 defaultMessage="Theme"
                 description="Label for menu to choose theme"
                 id="tw.menuBar.theme"
@@ -146,6 +203,8 @@ const UnconnectedThemePage = ({theme, onChangeTheme}) => (
 
         <PageHeader>
             <FormattedMessage
+=======
+>>>>>>> bilup/develop
                 defaultMessage="Block Colors"
                 description="Label for to choose what color blocks should be, eg. original or high contrast"
                 id="tw.menuBar.blockColors"
@@ -189,6 +248,7 @@ const UnconnectedThemePage = ({theme, onChangeTheme}) => (
                 <ExternalLink size={14} />
             </button>
         </div>
+        <CatBlocksSettings />
     </Box>
 );
 UnconnectedThemePage.propTypes = {

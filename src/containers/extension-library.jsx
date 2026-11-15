@@ -310,7 +310,11 @@ const SOURCES = [
                 description: extension.description,
                 descriptionTranslations: extension.descriptionTranslations || {},
                 extensionId: extension.id,
-                extensionURL: `https://extensions.mistium.com/featured/${extension.name}.js`,
+                // 用 filename（自带 .js）优先，而不是拼 name：目前的元数据里两者恰好
+                // 一致，但离线打包脚本（desktop 的 prepare-mw-extensions.mjs）是按
+                // filename 落盘的，一旦某个扩展的 name 与文件名不同，拼 name 就会
+                // 本地命中不到、白白回源甚至 404。
+                extensionURL: `https://extensions.mistium.com/featured/${extension.filename || `${extension.name}.js`}`,
                 iconURL: extension.image ? `https://extensions.mistium.com/${extension.image}` : emptyBanner,
                 source: 'mistium',
                 tags: ['mistium'],
@@ -658,7 +662,7 @@ class ExtensionLibrary extends React.PureComponent {
     }
     getSourceStatus(tag) {
         // 内置本地数据始终可用（桌面端本地加载成功 → 蓝色）
-        if (tag === 'scratch' || tag === 'rotur') {
+        if (tag === 'scratch') {
             return 'local';
         }
         // 无状态时返回 'idle' 作为占位
@@ -781,7 +785,10 @@ class ExtensionLibrary extends React.PureComponent {
             ['scratch', 'Scratch'],
             ['tw', 'TurboWarp'],
             ['mistium', 'Mistium'],
+<<<<<<< eea4f3f
             ['rotur', 'PineWarp Accounts'],
+=======
+>>>>>>> bilup/develop
             ['sharkpool', 'SharkPool'],
             ['ae', 'AstraEditor'],
             ['pinewarp', 'PineWarp'],

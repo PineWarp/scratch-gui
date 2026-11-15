@@ -1,5 +1,7 @@
 // Selection and navigation utilities
 
+import Utils from '../find-bar/Utils.js';
+
 /**
  * Find the next selectable (non-header) item index
  * @param {any[]} queryPreviews Array of preview items
@@ -102,6 +104,11 @@ const handleCustomBlockSelection = (customBlockData, vm, Blockly, redux) => {
                 setTimeout(() => {
                     block.unselect();
                 }, 500);
+            } else if (typeof workspace.getDeferredScripts === 'function') {
+                // The definition lives in a script the lazy loader has not
+                // rendered. Scrolling to it is what makes it render, so the
+                // user still lands on the block they asked for.
+                new Utils(vm, Blockly).scrollBlockIntoView(customBlockData.blockId);
             }
         }
     }, 100);

@@ -134,6 +134,7 @@
     "redux": "3.7.2",
     "redux-throttle": "0.1.1",
     "remark-gfm": "^2.0.0",
+<<<<<<< eea4f3f
     "rotur-sdk": "github:PineWarp/accounts-sdk#main",
     "scratch-audio": "github:PineWarp/scratch-audio#develop-builds",
     "scratch-blocks": "github:PineWarp/new-scratch-blocks#develop-builds",
@@ -144,6 +145,14 @@
     "scratch-storage": "^1.0.0",
     "scratch-translate-extension-languages": "0.0.20191118205314",
     "scratch-vm": "github:PineWarp/scratch-vm#develop-builds",
+=======
+    "scratch-audio": "github:Bilup/scratch-audio#develop-builds",
+    "scratch-blocks": "github:Bilup/new-scratch-blocks#develop-builds",
+    "scratch-parser": "github:Bilup/scratch-parser#main",
+    "scratch-paint": "github:Bilup/scratch-paint#develop",
+    "scratch-render": "github:Bilup/scratch-render#develop-builds",
+    "scratch-vm": "github:Bilup/scratch-vm#develop-builds",
+>>>>>>> bilup/develop
     "socks-proxy-agent": "^10.0.0",
     "style-loader": "^0.23.0",
     "text-encoding": "0.7.0",
@@ -231,7 +240,7 @@
     },
     "testEnvironment": "jsdom",
     "transformIgnorePatterns": [
-      "/node_modules/(?!(scratch-audio|scratch-parser|fractch|pify|isomorphic-git|rotur-sdk|@vernier/godirect|@chenglou/pretext)/)"
+      "/node_modules/(?!(scratch-audio|scratch-parser|fractch|pify|isomorphic-git|@vernier/godirect|@chenglou/pretext)/)"
     ],
     "transform": {
       "^.+\\.(js|jsx|mjs|cjs)$": "<rootDir>/test/helpers/babel7-jest-transformer.js"
@@ -251,7 +260,10 @@
       "webpack@4.47.0>terser-webpack-plugin": "^1.4.1",
       "cheerio": "1.0.0-rc.12",
       "brace-expansion": "1.1.11",
+<<<<<<< eea4f3f
       "rotur-sdk": "github:PineWarp/accounts-sdk#main",
+=======
+>>>>>>> bilup/develop
       "escape-string-regexp": "4.0.0"
     }
   }

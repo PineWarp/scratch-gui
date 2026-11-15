@@ -61,6 +61,7 @@ const MenuBarHOC = function (WrappedComponent) {
                         message={this.props.toastMessage}
                         type={this.props.toastType}
                         position={this.props.toastPosition}
+                        seq={this.props.toastSeq}
                         visible={this.props.toastVisible}
                         onClose={this.props.hideToast}
                     />
@@ -79,7 +80,8 @@ const MenuBarHOC = function (WrappedComponent) {
         toastVisible: PropTypes.bool,
         toastMessage: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
         toastType: PropTypes.oneOf(['success', 'error', 'info', 'warning']),
-        toastPosition: PropTypes.oneOf(['top-right', 'bottom-right'])
+        toastPosition: PropTypes.oneOf(['top-right', 'bottom-right']),
+        toastSeq: PropTypes.number
     };
     MenuBarContainer.defaultProps = {
         // default to using standard js confirm
@@ -91,6 +93,7 @@ const MenuBarHOC = function (WrappedComponent) {
         toastMessage: state.scratchGui.toast && state.scratchGui.toast.message,
         toastType: state.scratchGui.toast && state.scratchGui.toast.type,
         toastPosition: state.scratchGui.toast && state.scratchGui.toast.position,
+        toastSeq: state.scratchGui.toast && state.scratchGui.toast.seq,
         customShortcuts: state.scratchGui.shortcuts.customShortcuts
     });
     const mapDispatchToProps = dispatch => ({

@@ -3,31 +3,28 @@ import {FormattedMessage} from 'react-intl';
 import PropTypes from 'prop-types';
 import React from 'react';
 
-import InlineMessages from '../../containers/inline-messages.jsx';
-
 import {
     manualUpdateProject
 } from '../../reducers/project-state';
 
-import {
-    filterInlineAlerts
-} from '../../reducers/alerts';
-
 import styles from './save-status.css';
 
-// Wrapper for inline messages in the nav bar, which are all related to saving.
-// Show any inline messages if present, else show the "Save Now" button if the
-// project has changed.
-// We decided to not use an inline message for "Save Now" because it is a reflection
-// of the project state, rather than an event.
+// Wrapper for the "Save Now" link in the nav bar.
+//
+// This unit used to host <InlineMessages /> as well, because the nav bar was
+// where inline save alerts ("Saving…", "Saved", "Restored…") were rendered.
+// They are now routed to the bottom-right notification instead, and that bridge
+// is mounted once at the GUI root (containers/inline-messages.jsx). A second
+// copy here would post every notification twice, so it must not come back.
+//
+// Note this component is also currently unused (menu-bar.jsx has its import
+// commented out since the menu bar rewrite) — it is kept because the settings
+// modal still lists it as a menu-bar layout unit.
 const SaveStatus = ({
-    alertsList,
     projectChanged,
     onClickSave
 }) => (
-    filterInlineAlerts(alertsList).length > 0 ? (
-        <InlineMessages />
-    ) : projectChanged && (
+    projectChanged && (
         <div
             className={styles.saveNow}
             onClick={onClickSave}
@@ -43,13 +40,11 @@ const SaveStatus = ({
     ));
 
 SaveStatus.propTypes = {
-    alertsList: PropTypes.arrayOf(PropTypes.object),
     onClickSave: PropTypes.func,
     projectChanged: PropTypes.bool
 };
 
 const mapStateToProps = state => ({
-    alertsList: state.scratchGui.alerts.alertsList,
     projectChanged: state.scratchGui.projectChanged
 });
 

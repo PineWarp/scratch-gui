@@ -40,7 +40,7 @@ const getMessages = (ScratchBlocks, blockJson) => [
     ScratchBlocks.Msg,
     Object.fromEntries(
         blockJson.flatMap(b => {
-            if (!b) return [];
+            if (!b || typeof b.type !== 'string') return [];
             const normalizedType = normalizeType(b.type);
             const messages = [];
             let i = 0;
@@ -61,18 +61,28 @@ const getMessages = (ScratchBlocks, blockJson) => [
             }
 
             if (!text) return [];
-            return [[normalizedType, text]];
+
+            // Keyed by the raw opcode as well as by the name scratch-blocks messages use. An
+            // extension block whose opcode only resembles a core one ("operator_..." would be
+            // normalised to "OPERATORS_...") then still resolves to its own name instead of
+            // being answered with the core block's.
+            const entries = [];
+            if (b.type !== normalizedType) entries.push([b.type, text]);
+            entries.push([normalizedType, text]);
+            return entries;
         })
     )
 ];
 
-const getColours = blockJson => Object.fromEntries(
-    blockJson.flatMap(b => {
-        if (!b) return [];
-        const normalizedType = normalizeType(b.type);
-        return [[normalizedType, b.colour]];
-    })
-);
+const getColours = blockJson => {
+    const colours = {};
+    for (const b of blockJson) {
+        if (!b || typeof b.type !== 'string') continue;
+        colours[b.type] = b.colour;
+        colours[normalizeType(b.type)] = b.colour;
+    }
+    return colours;
+};
 
 export default class FindBarController {
     constructor ({ScratchBlocks, utils, vm, msg, msgAny, inputClassName, activeTabIndexRef, isPlayerOnlyRef}) {
@@ -480,6 +490,9 @@ export default class FindBarController {
                     li.style.display = 'none';
                 }
             }
+            // Rows that became visible in this chunk need their block built.
+            this.dropdown.renderVisiblePreviews();
+
             if (index < listLI.length) {
                 this._searchChunkRaf = requestAnimationFrame(processChunk);
             } else {
@@ -505,10 +518,21 @@ export default class FindBarController {
             }
             li.style.display = 'block';
 
+<<<<<<< eea4f3f
             const displayName = li.displayName;
             this.clearChildren(li);
             li.appendChild(document.createTextNode(displayName));
+=======
+            // Rows drawn as real blocks keep their rendering instead of being replaced by text.
+            if (li.isBlockPreview) continue;
+
+            // Plain text, not a highlight: this runs for every row of the list.
+            li.textContent = li.displayName;
+>>>>>>> bilup/develop
         }
+
+        // Only the rows on screen are built into blocks.
+        this.dropdown.renderVisiblePreviews();
     }
 
     showCodeResults (results) {
@@ -763,6 +787,9 @@ export default class FindBarController {
             }
         }
 
+        // Rows start out as text; only the ones that ended up on screen are built into blocks.
+        this.dropdown.renderVisiblePreviews();
+
         this.utils.offsetX = this.dropdownOut.getBoundingClientRect().width + 32;
         this.utils.offsetY = 32;
     }
@@ -934,20 +961,23 @@ export default class FindBarController {
 
         const vars = map.getVariablesOfType('');
         for (const row of vars) {
-            addBlock(
+            const item = addBlock(
                 row.isLocal ? 'var' : 'VAR',
                 row.isLocal ? this.msg('var-local', {name: row.name}) : this.msg('var-global', {name: row.name}),
                 row
             );
+            // Carried so the row can be drawn as the variable block itself.
+            item.variableName = row.name;
         }
 
         const lists = map.getVariablesOfType('list');
         for (const row of lists) {
-            addBlock(
+            const item = addBlock(
                 row.isLocal ? 'list' : 'LIST',
                 row.isLocal ? this.msg('list-local', {name: row.name}) : this.msg('list-global', {name: row.name}),
                 row
             );
+            item.variableName = row.name;
         }
 
         const events = this.getCallsToEvents();
@@ -1031,6 +1061,20 @@ export default class FindBarController {
             }
             return block.opcode.replace('event_when', 'when ').replace(/_/g, ' ');
         };
+        /**
+         * Keeps the field values on the first entry of a block type. That entry is the one a row
+         * points at, and the values are what let the row still be drawn as a block even though
+         * the editor has unloaded the script it came from.
+         * @param {object} item The BlockItem that was added.
+         * @param {object} block The VM block record.
+         * @returns {object} The same item.
+         */
+        const setVmFields = (item, block) => {
+            if (item && !item.vmFields) {
+                item.vmFields = (block && block.fields) || null;
+            }
+            return item;
+        };
 
         for (const blockId of Object.keys(vmBlocks)) {
             const block = vmBlocks[blockId];
@@ -1059,14 +1103,14 @@ export default class FindBarController {
                     const text = typeof template === 'string' ?
                         template.replace('%1', flag) :
                         `when ${flag} clicked`;
-                    addBlock('flag', text, blockId, opcode, y);
+                    setVmFields(addBlock('flag', text, blockId, opcode, y), block);
                 } else if (opcode === 'event_whenbroadcastreceived') {
                     const eventName = (block.fields && block.fields.BROADCAST_OPTION &&
                         block.fields.BROADCAST_OPTION.value) || 'message';
-                    addBlock('receive', this.msg('event', {name: eventName}), blockId, opcode, y)
+                    setVmFields(addBlock('receive', this.msg('event', {name: eventName}), blockId, opcode, y), block)
                         .eventName = eventName;
                 } else if (opcode.startsWith('event_when') || opcode === 'control_start_as_clone') {
-                    addBlock('event', hatLabel(block), blockId, opcode, y);
+                    setVmFields(addBlock('event', hatLabel(block), blockId, opcode, y), block);
                 }
             }
 
@@ -1076,7 +1120,7 @@ export default class FindBarController {
                 !opcode.startsWith('procedures_') &&
                 opcode !== 'control_start_as_clone'
             ) {
-                addBlock(opcode, opcode, blockId, opcode);
+                setVmFields(addBlock(opcode, opcode, blockId, opcode), block);
             }
 
             if (opcode === 'event_broadcast' || opcode === 'event_broadcastandwait') {
@@ -1102,21 +1146,23 @@ export default class FindBarController {
             for (const varId of Object.keys(variables)) {
                 const variable = variables[varId];
                 if (variable.type === '') {
-                    addBlock(
+                    const item = addBlock(
                         isLocal ? 'var' : 'VAR',
                         isLocal ?
                             this.msg('var-local', {name: variable.name}) :
                             this.msg('var-global', {name: variable.name}),
                         varId
                     );
+                    item.variableName = variable.name;
                 } else if (variable.type === 'list') {
-                    addBlock(
+                    const item = addBlock(
                         isLocal ? 'list' : 'LIST',
                         isLocal ?
                             this.msg('list-local', {name: variable.name}) :
                             this.msg('list-global', {name: variable.name}),
                         varId
                     );
+                    item.variableName = variable.name;
                 }
             }
         };

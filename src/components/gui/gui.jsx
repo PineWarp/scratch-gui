@@ -47,6 +47,9 @@ import CustomGalleryModal from '../../containers/custom-gallery-modal.jsx';
 import RoturLoginModal from '../mw-rotur-login-modal/rotur-login-modal.jsx';
 import {closeRoturLoginModal} from '../../reducers/modals.js';
 import SimpleDialog from '../../containers/simple-dialog.jsx';
+import InlineMessages from '../../containers/inline-messages.jsx';
+import TWVariableManager from '../../containers/tw-variable-manager.jsx';
+import TWProjectAssetsManager from '../../containers/bl-project-assets-manager.jsx';
 import AddonHooks from '../../addons/hooks.js';
 import NativeFindBar from '../find-bar/find-bar.jsx';
 import NativeSpotlight from '../../containers/spotlight.jsx';
@@ -55,6 +58,7 @@ import {STAGE_SIZE_MODES, STAGE_DISPLAY_SIZES, FIXED_WIDTH, UNCONSTRAINED_NON_ST
 import {resolveStageSize} from '../../lib/utils/screen';
 import {getFindBarApi} from '../../lib/find-bar/api';
 import {setFractchModeOpener} from '../../lib/git/fractch-mode';
+import {scheduleModalPrefetch} from '../../lib/mw/prefetch-modals';
 import {Theme} from '../../lib/themes';
 
 import {BLOCKS_TAB_INDEX, COSTUMES_TAB_INDEX, SOUNDS_TAB_INDEX} from '../../reducers/editor-tab';
@@ -946,6 +950,16 @@ const GUIComponent = props => {
         }
     }, [onStartSelectingFileUpload, onClickPackager]);
 
+    // 设置 / 自定义扩展两个弹窗是 React.lazy 按需加载的。不预热的话，第一次
+    // 点开要先下载分块，期间 fallback 为 null，看起来就是「点了没反应」。
+    // 编辑器空闲后串行 import 一次，之后打开只剩一次微任务的开销。
+    useEffect(() => {
+        if (isEmbedded) {
+            return;
+        }
+        scheduleModalPrefetch();
+    }, [isEmbedded]);
+
     const tabClassNames = useMemo(() => ({
         tabs: styles.tabs,
         tab: classNames(tabStyles.reactTabsTab, styles.tab),
@@ -966,6 +980,16 @@ const GUIComponent = props => {
             <RoturSession />
             {!isEmbedded && <RoturExtensionHost />}
             <NotificationsProvider />
+            {/* AlertTypes.INLINE 的提示（saving / saveSuccess /
+                twSaveToDiskSuccess / twCreatingRestorePoint /
+                twRestorePoint*）只有一个 UI 出口：这里 → inline-messages →
+                notification-manager → 右下角。它原先挂在 menu-bar/save-status
+                里，而那个组件的 import 在 menu-bar.jsx 被注释掉了，于是这些
+                提示只进 store、从来没人画出来（保存作品、创建还原点都静默）。
+                挂到 GUI 根上就与菜单栏布局无关，且全局只有一份。 */}
+            <InlineMessages />
+            <TWVariableManager />
+            <TWProjectAssetsManager />
             <TWSecurityManager securityManager={securityManager} />
             <TWRestorePointManager />
             <MWExtensionManagerModal />
@@ -1333,7 +1357,10 @@ const GUIComponent = props => {
                                                     vm={vm}
                                                 />
                                             </Box>
-                                            <Box className={styles.paletteFooter}>
+                                            <Box
+                                                className={styles.paletteFooter}
+                                                data-palette-footer
+                                            >
                                                 <button
                                                     className={classNames(
                                                         styles.paletteButton,
@@ -1349,6 +1376,7 @@ const GUIComponent = props => {
                                                 </button>
                                                 <button
                                                     className={styles.paletteButton}
+                                                    data-extension-button
                                                     title={intl.formatMessage(messages.addExtension)}
                                                     onClick={onExtensionButtonClick}
                                                 >
