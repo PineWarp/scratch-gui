@@ -484,6 +484,20 @@ const settingDefinitions = {
             id: 'mw.settingsModal.scriptLazyLoadingHelp'
         }
     },
+    skipAssetLoading: {
+        label: {
+            defaultMessage: 'Ignore Costumes When Loading Projects',
+            description: 'Skip loading project assets so the project opens immediately',
+            id: 'mw.settingsModal.skipAssetLoading'
+        },
+        help: {
+            defaultMessage: 'Opens a project right away without waiting for its costumes and ' +
+                'sounds, then loads them gradually in the background. Sprites stay ' +
+                'invisible until their costumes arrive.',
+            description: 'Ignore Costumes When Loading Projects setting help',
+            id: 'mw.settingsModal.skipAssetLoadingHelp'
+        }
+    },
     embedGitOnSave: {
         label: {
             defaultMessage: 'Embed Git Repository on Save',
@@ -678,6 +692,7 @@ const RealLayerIndexes = createBooleanSetting('RealLayerIndexes', settingDefinit
 const EnableStageResize = createBooleanSetting('EnableStageResize', settingDefinitions.enableStageResize);
 const WindowAnimation = createBooleanSetting('WindowAnimation', settingDefinitions.windowAnimation);
 const ScriptLazyLoading = createBooleanSetting('ScriptLazyLoading', settingDefinitions.scriptLazyLoading);
+const SkipAssetLoading = createBooleanSetting('SkipAssetLoading', settingDefinitions.skipAssetLoading);
 const EmbedGitOnSave = createBooleanSetting('EmbedGitOnSave', settingDefinitions.embedGitOnSave);
 const SquareStageCorners = createBooleanSetting('SquareStageCorners', settingDefinitions.squareStageCorners);
 const HideDeleteButton = createBooleanSetting('HideDeleteButton', settingDefinitions.hideDeleteButton);
@@ -1373,6 +1388,13 @@ const pageConfigurations = {
                         })
                     },
                     {
+                        component: SkipAssetLoading,
+                        props: props => ({
+                            value: props.skipAssetLoading,
+                            onChange: props.onSkipAssetLoadingChange
+                        })
+                    },
+                    {
                         component: EmbedGitOnSave,
                         props: props => ({
                             value: props.embedGitOnSave,
@@ -1763,6 +1785,8 @@ SettingsModalComponent.propTypes = {
     onWindowAnimationChange: PropTypes.func,
     scriptLazyLoading: PropTypes.bool,
     onScriptLazyLoadingChange: PropTypes.func,
+    skipAssetLoading: PropTypes.bool,
+    onSkipAssetLoadingChange: PropTypes.func,
     embedGitOnSave: PropTypes.bool,
     onEmbedGitOnSaveChange: PropTypes.func
 };
