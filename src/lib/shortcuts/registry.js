@@ -87,6 +87,16 @@ export const getDefaultShortcuts = () => [
         label: 'Spotlight Search'
     },
     {
+        id: 'textTools',
+        key: 'Ctrl+H',
+        defaultKey: 'Ctrl+H',
+        category: SHORTCUT_CATEGORIES.EDITOR_NAVIGATION,
+        actionType: 'callback',
+        action: 'openTextTools',
+        params: [],
+        label: 'Project Text Tools'
+    },
+    {
         id: 'settings',
         key: 'Ctrl+,',
         defaultKey: 'Ctrl+,',

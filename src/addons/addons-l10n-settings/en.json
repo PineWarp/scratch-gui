@@ -518,5 +518,10 @@
   "background/@description": "Make your editor look brand new.",
   "background/@info-reducePerformance": "This may reduce performance, and will override Bilup's original wallpaper settings.",
   "todo/@name": "To-Do",
-  "todo/@description": "Record your project to-do!"
+  "todo/@description": "Record your project to-do!",
+  "text-tools/@name": "Project text tools",
+  "text-tools/@description": "Search, replace and export every piece of text in your project - messages, questions, numbers and more - across all sprites at once.",
+  "text-tools/@settings-name-searchAllSprites": "Search all sprites by default",
+  "text-tools/@settings-name-caseSensitive": "Case sensitive by default",
+  "text-tools/@settings-name-maxResults": "Maximum number of rows shown"
 }

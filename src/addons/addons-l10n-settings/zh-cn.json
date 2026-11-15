@@ -520,5 +520,10 @@
   "project-size-display/@name": "项目大小显示",
   "project-size-display/@description": "在角色栏底部显示作品大小、代码数量和选中角色/舞台的大小。",
   "resize-selected-item/@name": "调整所选项目大小",
-  "resize-selected-item/@description": "在绘图编辑器中添加一个按钮，可用精确的宽度和高度值调整所选项目的大小。"
+  "resize-selected-item/@description": "在绘图编辑器中添加一个按钮，可用精确的宽度和高度值调整所选项目的大小。",
+  "text-tools/@name": "项目文本工具",
+  "text-tools/@description": "在所有角色中搜索、替换和导出项目里的每一段文本——消息、问题、数字等等，一次搞定。",
+  "text-tools/@settings-name-searchAllSprites": "默认搜索全部角色",
+  "text-tools/@settings-name-caseSensitive": "默认区分大小写",
+  "text-tools/@settings-name-maxResults": "最多显示的行数"
 }

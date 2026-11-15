@@ -76,7 +76,8 @@ const addons = [
     'green-flag-order',
     'remove-extension-button',
     'project-size-display',
-    'merge-operators'
+    'merge-operators',
+    'text-tools'
 ];
 
 const newAddons = [

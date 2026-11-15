@@ -88,6 +88,7 @@ import _todo from "../addons/todo/_manifest_entry.js";
 import _calculator from "../addons/calculator/_manifest_entry.js";
 import _project_size_display from "../addons/project-size-display/_manifest_entry.js";
 import _resize_selected_item from "../addons/resize-selected-item/_manifest_entry.js";
+import _text_tools from "../addons/text-tools/_manifest_entry.js";
 export default {
   "dev-inspector": _dev_inspector,
   "editor-devtools": _editor_devtools,
@@ -177,5 +178,6 @@ export default {
   "todo": _todo,
   "calculator": _calculator,
   "project-size-display": _project_size_display,
-  "resize-selected-item": _resize_selected_item
+  "resize-selected-item": _resize_selected_item,
+  "text-tools": _text_tools
 };

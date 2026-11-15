@@ -1,0 +1,49 @@
+{
+    "name": "Project text tools",
+    "description": "Search, replace and export every piece of text in your project - messages, questions, numbers and more - across all sprites at once.",
+    "credits": [
+        {
+            "name": "PineWarp"
+        }
+    ],
+    "userscripts": [
+        {
+            "url": "userscript.js",
+            "matches": [
+                "projects"
+            ]
+        }
+    ],
+    "userstyles": [
+        {
+            "url": "userstyle.css"
+        }
+    ],
+    "settings": [
+        {
+            "id": "searchAllSprites",
+            "name": "Search all sprites by default",
+            "type": "boolean",
+            "default": true
+        },
+        {
+            "id": "caseSensitive",
+            "name": "Case sensitive by default",
+            "type": "boolean",
+            "default": false
+        },
+        {
+            "id": "maxResults",
+            "name": "Maximum number of rows shown",
+            "type": "integer",
+            "min": 100,
+            "max": 5000,
+            "default": 1000
+        }
+    ],
+    "tags": [
+        "recommended"
+    ],
+    "editorOnly": true,
+    "enabledByDefault": true
+}

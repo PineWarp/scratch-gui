@@ -367,6 +367,11 @@ const executeCallbackAction = shortcut => {
                 callbacks.openSpotlight();
             }
             break;
+        case 'openTextTools':
+            if (callbacks.openTextTools) {
+                callbacks.openTextTools();
+            }
+            break;
         case 'toggleStageSize':
             if (callbacks.toggleStageSize) {
                 callbacks.toggleStageSize();
