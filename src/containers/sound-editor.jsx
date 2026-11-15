@@ -76,6 +76,11 @@ class SoundEditor extends React.Component {
         document.addEventListener('keydown', this.handleKeyPress);
     }
     UNSAFE_componentWillReceiveProps (newProps) {
+        if (newProps.soundUnavailable) {
+            // Editing target changed and there is no sound to show yet; wait for the parent to
+            // unmount this component or hand over a valid sound.
+            return;
+        }
         if (newProps.soundId !== this.props.soundId) { // A different sound has been selected
             this.redoStack = [];
             this.undoStack = [];
@@ -445,6 +450,9 @@ class SoundEditor extends React.Component {
         }
     }
     render () {
+        if (this.props.soundUnavailable) {
+            return null;
+        }
         const {effectTypes} = AudioEffects;
         return (
             <SoundEditorComponent
@@ -493,20 +501,30 @@ SoundEditor.propTypes = {
     duration: PropTypes.number,
     size: PropTypes.number,
     isFullScreen: PropTypes.bool,
-    name: PropTypes.string.isRequired,
+    name: PropTypes.string,
     sampleRate: PropTypes.number,
     samples: PropTypes.instanceOf(Float32Array),
     soundId: PropTypes.string,
     soundIndex: PropTypes.number,
+    soundUnavailable: PropTypes.bool,
     vm: PropTypes.instanceOf(VM).isRequired
 };
 
 const mapStateToProps = (state, {soundIndex}) => {
-    const sprite = state.scratchGui.vm.editingTarget.sprite;
+    const target = state.scratchGui.vm.editingTarget;
+    const sounds = (target && target.sprite && target.sprite.sounds) || [];
     // Make sure the sound index doesn't go out of range.
-    const index = soundIndex < sprite.sounds.length ? soundIndex : sprite.sounds.length - 1;
-    const sound = state.scratchGui.vm.editingTarget.sprite.sounds[index];
-    const audioBuffer = state.scratchGui.vm.getSoundBuffer(index);
+    const index = Math.max(0, Math.min(soundIndex, sounds.length - 1));
+    const sound = sounds[index];
+    // The editing target can change before this component receives its new props, in which case the
+    // sound at the old index may no longer exist. Don't touch the VM until there is a valid sound.
+    const audioBuffer = sound ? state.scratchGui.vm.getSoundBuffer(index) : null;
+    if (!sound || !audioBuffer) {
+        return {
+            soundUnavailable: true,
+            vm: state.scratchGui.vm
+        };
+    }
     return {
         isStereo: audioBuffer.numberOfChannels !== 1,
         duration: sound.sampleCount / sound.rate,
