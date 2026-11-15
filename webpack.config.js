@@ -32,7 +32,7 @@ const htmlWebpackPluginCommon = {
 };
 
 // When this changes, the path for all JS files will change, bypassing any HTTP caches
-const CACHE_EPOCH = 'gleba4';
+const CACHE_EPOCH = 'gleba24';
 
 const base = {
     mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
@@ -321,10 +321,22 @@ const _sdepsStore = path.resolve(__dirname, '..', '_sdeps', 'node_modules');
 const hasSdepsStore = fs.existsSync(_sdepsStore);
 if (!hasSdepsStore) {
     const alias = base.resolve.alias;
-    // Directly imported by src but only shipped via the _sdeps @bilup forks;
-    // in CI they resolve to the npm-installed equivalents already in deps.
-    alias['@bilup/scratch-l10n'] = path.resolve(__dirname, 'node_modules/@remixwarp/scratch-l10n');
-    alias['@bilup/scratch-svg-renderer'] = path.resolve(__dirname, 'node_modules/@turbowarp/scratch-svg-renderer');
+    // base.resolve.alias points the _sdeps-only names at that store, which does
+    // not exist in a plain npm/pnpm checkout. Redirect to the installed package
+    // when the alternative name is present, otherwise drop the alias entirely so
+    // normal node_modules resolution finds the real dependency.
+    const l10nAlt = path.resolve(__dirname, 'node_modules/@remixwarp/scratch-l10n');
+    if (fs.existsSync(l10nAlt)) {
+        alias['@bilup/scratch-l10n'] = l10nAlt;
+    } else {
+        delete alias['@bilup/scratch-l10n'];
+    }
+    const svgAlt = path.resolve(__dirname, 'node_modules/@turbowarp/scratch-svg-renderer');
+    if (fs.existsSync(svgAlt)) {
+        alias['@bilup/scratch-svg-renderer'] = svgAlt;
+    } else {
+        delete alias['@bilup/scratch-svg-renderer'];
+    }
     // scratch-vm's transitive deps resolve normally from its own nested
     // node_modules once the _sdeps redirects are removed.
     delete alias['@bilup/scratch-render-fonts'];
@@ -449,7 +461,13 @@ module.exports = [
             minimize: process.env.NODE_ENV === 'production',
             minimizer: process.env.NODE_ENV === 'production' ? [
                 new (require('terser-webpack-plugin').default || require('terser-webpack-plugin'))({
-                    parallel: true,
+                    // `parallel: true` forks one worker per core, and each worker keeps
+                    // its own copy of the ~9 MB of chunks it minifies. On this project
+                    // that pushed total RSS past what the machine would grant and the
+                    // build died silently at the emit stage with no error message.
+                    // A small fixed pool keeps memory bounded while staying faster than
+                    // single-threaded minification.
+                    parallel: 2,
                     terserOptions: {
                         ecma: 2018,
                         compress: {

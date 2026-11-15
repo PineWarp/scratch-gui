@@ -16,8 +16,13 @@
  * 官方 scratch-l10n 已内置完成的文言文(lzh)翻译。
  * 这里把它们并入编辑器，并补充 PineWarp 独有的 UI 文案。
  */
-import interfaceLzh from '@bilup/scratch-l10n/editor/interface/lzh.json';
-import {default as lzhBlocksJson} from '@bilup/scratch-l10n/editor/blocks/lzh.json';
+// The published @bilup/scratch-l10n package ships only dist/lib/locales — the
+// editor/interface and editor/blocks JSON trees are excluded by its .npmignore,
+// so importing them from the package fails on a plain `npm install`. The two
+// files are vendored here instead so the classical-Chinese locale stays
+// available regardless of how the dependency is installed.
+import interfaceLzh from './tw-translations/lzh/interface.json';
+import {default as lzhBlocksJson} from './tw-translations/lzh/blocks.json';
 export const LZH_BLOCKS = lzhBlocksJson;
 
 export const CLASSICAL_LOCALE = 'lzh';

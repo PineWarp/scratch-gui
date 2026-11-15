@@ -4,7 +4,7 @@ import {Plus} from 'lucide-react';
 import {useUser} from '../UserContext.jsx';
 import api, {editorUrl} from '../api';
 import {fetchNotifications} from '../../lib/rotur/client.js';
-import logo from '../assets/bilup-logo.svg';
+import logo from '../assets/pinewarp-logo.svg';
 import setFaviconBadge from '../faviconBadge';
 import styles from './NavBar.module.css';
 

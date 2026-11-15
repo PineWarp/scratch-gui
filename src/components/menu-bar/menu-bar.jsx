@@ -156,7 +156,7 @@ import blockCountStyles from './block-count-window.css';
 
 import ChevronDown from './ChevronDown.jsx';
 
-import BilupLogo from './bilup-logo.jsx';
+import PineWarpLogo from './pinewarp-logo.jsx';
 import ninetiesLogo from './nineties_logo.svg';
 import catLogo from './cat_logo.svg';
 import prehistoricLogo from './prehistoric-logo.svg';
@@ -1642,7 +1642,7 @@ class MenuBar extends React.Component {
                         title={this.props.intl.formatMessage(twMessages.bilupHome)}
                         data-mw-item="__home"
                     >
-                        <BilupLogo
+                        <PineWarpLogo
                             className={styles.homeLogo}
                             alt={this.props.intl.formatMessage(twMessages.bilupLogoAlt)}
                         />

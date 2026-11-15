@@ -3,7 +3,7 @@ import {Link} from 'react-router-dom';
 import {FormattedMessage} from 'react-intl';
 import {Github} from 'lucide-react';
 import {editorUrl} from '../api';
-import logo from '../assets/bilup-logo.svg';
+import logo from '../assets/pinewarp-logo.svg';
 import styles from './Footer.module.css';
 
 const Footer = () => (
