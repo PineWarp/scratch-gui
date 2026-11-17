@@ -43,9 +43,7 @@ const MenuBarHOC = function (WrappedComponent) {
             } = this.props;
             return (
                 <React.Fragment>
-                    <SB3Downloader
-                        showSaveFilePicker={this.props.showSaveFilePicker}
-                    >
+                    <SB3Downloader>
                         {(_className, _downloadProject, extended) => (
                             <WrappedComponent
                                 confirmReadyToReplaceProject={this.confirmReadyToReplaceProject}
@@ -75,7 +73,6 @@ const MenuBarHOC = function (WrappedComponent) {
         canSave: PropTypes.bool,
         confirmWithMessage: PropTypes.func,
         projectChanged: PropTypes.bool,
-        showSaveFilePicker: PropTypes.func,
         showToast: PropTypes.func.isRequired,
         toastVisible: PropTypes.bool,
         toastMessage: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),

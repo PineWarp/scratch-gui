@@ -930,15 +930,12 @@ class MenuBar extends React.Component {
 
         const modifier = bowser.mac ? event.metaKey : event.ctrlKey;
         if (modifier) {
-            // Check if Ctrl+S or Ctrl+O have been customized
+            // Ctrl+S is handled by the shortcuts system (saveSmart). Handling
+            // it here as well would download the project twice.
             const hasCustomShortcuts = this.props.customShortcuts && Object.keys(this.props.customShortcuts).length > 0;
-            const isSaveCustomized = hasCustomShortcuts && this.props.customShortcuts.save;
             const isOpenCustomized = hasCustomShortcuts && this.props.customShortcuts.open;
 
-            if (event.key.toLowerCase() === 's' && !isSaveCustomized) {
-                this.props.handleSaveProject();
-                event.preventDefault();
-            } else if (event.key.toLowerCase() === 'o' && !isOpenCustomized) {
+            if (event.key.toLowerCase() === 'o' && !isOpenCustomized) {
                 event.preventDefault();
                 this.props.onStartSelectingFileUpload();
             }
@@ -1403,15 +1400,9 @@ class MenuBar extends React.Component {
         }, 1000);
     }
     performAutosave () {
-        if (this.state.menuBarSettings.autosave_only_when_changed && !this.props.projectChanged) return;
-        // Save to the current file using the same method as manual save
-        if (this.props.handleSaveProject) {
-            this.props.handleSaveProject();
-
-            if (this.state.menuBarSettings.autosave_notifications) {
-                this.showAutosaveNotification('Project autosaved successfully!', 'success');
-            }
-        }
+        // Saving now always downloads a new .sb3 file, so a timed autosave
+        // would keep dropping copies into the downloads folder. There is no
+        // current file handle left to update silently.
     }
     showAutosaveNotification(message, type = 'info') {
         // Use the toast notification system instead of manual DOM manipulation
@@ -1812,15 +1803,13 @@ class MenuBar extends React.Component {
                                             <Upload />
                                             {this.props.intl.formatMessage(sharedMessages.loadFromComputerTitle)}
                                         </MenuItem>
-                                        <SB3Downloader
-                                            showSaveFilePicker={this.props.showSaveFilePicker}
-                                        >
+                                        <SB3Downloader>
                                             {(_className, downloadProject, extended) => {
                                                 // Update callbacks with saveProject method
                                                 if (extended && extended.smartSave) {
                                                     updateCallbacks({
                                                         saveProject: extended.smartSave,
-                                                        saveProjectAsCopy: extended.saveAsNew
+                                                        saveProjectAsCopy: extended.smartSave
                                                     });
                                                 }
                                                 return (
@@ -2699,7 +2688,6 @@ MenuBar.propTypes = {
     onGitStatusDone: PropTypes.func,
     renderLogin: PropTypes.func,
     sessionExists: PropTypes.bool,
-    showSaveFilePicker: PropTypes.func,
     showComingSoon: PropTypes.bool,
     theme: PropTypes.shape({
         menuBarAlign: PropTypes.string
