@@ -39,6 +39,9 @@ export default class DevTools {
     async addContextMenus () {
         const blockly = await this.addon.tab.traps.getBlockly();
         const oldCleanUpFunc = blockly.WorkspaceSvg.prototype.cleanUp;
+        // Keep the built-in implementation: it understands frames, so clean up
+        // falls back to it whenever the workspace has frames.
+        this.originalCleanUp = oldCleanUpFunc;
         const self = this;
         blockly.WorkspaceSvg.prototype.cleanUp = function () {
             if (self.addon.settings.get('enableCleanUpPlus')) {
@@ -219,6 +222,17 @@ export default class DevTools {
    */
     doCleanUp (block) {
         const workspace = this.getWorkspace();
+
+        // A frame and the scripts inside it are tidied as one unit. The column
+        // layout below moves every top block on its own, which would drag
+        // framed scripts out of their frames and break collapsed frames, so
+        // defer to the built-in clean up whenever there are frames.
+        if (!block && workspace.getTopFrames && workspace.getTopFrames().length > 0 &&
+            this.originalCleanUp) {
+            this.originalCleanUp.call(workspace);
+            return;
+        }
+
         const makeSpaceForBlock = block && block.getRootBlock();
 
         UndoGroup.startUndoGroup(workspace);
@@ -272,6 +286,9 @@ export default class DevTools {
                 comment.setVisible(true);
             }
         }
+
+        // The blocks moved, so the scrollbars and cached geometry are stale.
+        workspace.resizeContents();
 
         setTimeout(() => {
             // Locate unused local variables...
