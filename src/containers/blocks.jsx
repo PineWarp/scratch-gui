@@ -100,6 +100,9 @@ const DroppableBlocks = DropAreaHOC([
 // which is what causes the visible freeze when opening big projects.
 const DEFERRED_WORKSPACE_LOAD_MIN_BLOCKS = 40;
 
+// How long a zoom burst has to be idle before the workspace catches up.
+const ZOOM_BURST_IDLE_MS = 160;
+
 /**
  * Whether any block in the project has no registered block definition.
  *
@@ -349,6 +352,7 @@ class Blocks extends React.Component {
         // @todo change this when blockly supports UI events
         addFunctionListener(this.workspace, 'translate', this.onWorkspaceMetricsChange);
         addFunctionListener(this.workspace, 'zoom', this.onWorkspaceMetricsChange);
+        this.installZoomBurstThrottle();
 
         this.props.vm.setCompilerOptions({
             warpTimer: true
@@ -534,6 +538,14 @@ class Blocks extends React.Component {
         this.onTargetsUpdate.cancel();
         this.onWorkspaceMetricsChange.cancel();
 
+        // Zoom burst state must not outlive the workspace: drop the timer and
+        // make sure the shared deferred-render budget is restored.
+        clearTimeout(this.zoomBurstTimer);
+        this.zoomBurstTimer = null;
+        this.zoomBurstActive = false;
+        this.zoomBurstPending = false;
+        this.resumeDeferredRenderer();
+
         // Clear the flyout blocks so that they can be recreated on mount.
         this.props.vm.clearFlyoutBlocks();
 
@@ -542,6 +554,83 @@ class Blocks extends React.Component {
         collaborationService.detachFromWorkspace();
 
         AddonHooks.blocklyWorkspace = null;
+    }
+
+    /**
+     * Continuous wheel zoom produces a burst of zoom steps. Every step moves
+     * the viewport, which makes the workspace check block visibility and
+     * render the scripts that just came into view. With many scripts that
+     * re-rendering runs on every frame of the burst and makes zooming feel
+     * laggy, so hold those checks until the burst has been idle for a moment
+     * and then run a single catch-up pass.
+     */
+    installZoomBurstThrottle () {
+        const workspace = this.workspace;
+        if (!workspace || this.zoomBurstInstalled) return;
+        const originalQueueIntersectionCheck = workspace.queueIntersectionCheck;
+        const originalZoom = workspace.zoom;
+        if (typeof originalQueueIntersectionCheck !== 'function' ||
+            typeof originalZoom !== 'function') {
+            return;
+        }
+
+        this.zoomBurstInstalled = true;
+        this.zoomBurstActive = false;
+        this.zoomBurstPending = false;
+        this.zoomBurstTimer = null;
+        this.zoomBurstRendererPaused = false;
+        this.savedDeferredRenderBudget = null;
+
+        workspace.queueIntersectionCheck = () => {
+            if (this.zoomBurstActive) {
+                this.zoomBurstPending = true;
+                return;
+            }
+            originalQueueIntersectionCheck.call(workspace);
+        };
+
+        workspace.zoom = (...args) => {
+            // The flag has to be set first: zoom() calls setScale(), which
+            // queues an intersection check synchronously.
+            this.beginZoomBurst();
+            return originalZoom.apply(workspace, args);
+        };
+    }
+    beginZoomBurst () {
+        this.zoomBurstActive = true;
+        this.pauseDeferredRenderer();
+        clearTimeout(this.zoomBurstTimer);
+        this.zoomBurstTimer = setTimeout(() => this.endZoomBurst(), ZOOM_BURST_IDLE_MS);
+    }
+    endZoomBurst () {
+        this.zoomBurstTimer = null;
+        this.zoomBurstActive = false;
+        this.resumeDeferredRenderer();
+        if (!workspaceIsAlive(this)) return;
+        if (this.zoomBurstPending) {
+            this.zoomBurstPending = false;
+            this.workspace.queueIntersectionCheck();
+        }
+    }
+    pauseDeferredRenderer () {
+        if (this.zoomBurstRendererPaused) return;
+        const Xml = this.ScratchBlocks && this.ScratchBlocks.Xml;
+        if (!Xml || typeof Xml.DEFERRED_RENDER_BUDGET_MS !== 'number') return;
+        // A deferred render already in flight would keep materializing scripts
+        // on every frame of the burst. A zero budget lets its loop idle until
+        // the burst ends and the real budget comes back.
+        this.savedDeferredRenderBudget = Xml.DEFERRED_RENDER_BUDGET_MS;
+        Xml.DEFERRED_RENDER_BUDGET_MS = 0;
+        this.zoomBurstRendererPaused = true;
+    }
+    resumeDeferredRenderer () {
+        if (!this.zoomBurstRendererPaused) return;
+        const Xml = this.ScratchBlocks && this.ScratchBlocks.Xml;
+        if (Xml && typeof this.savedDeferredRenderBudget === 'number') {
+            Xml.DEFERRED_RENDER_BUDGET_MS = this.savedDeferredRenderBudget;
+        }
+        this.savedDeferredRenderBudget = null;
+        this.zoomBurstRendererPaused = false;
     }
 
     setFlyoutWidth (flyoutWidth) {
