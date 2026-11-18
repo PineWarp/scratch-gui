@@ -928,11 +928,40 @@
 }
 
 .direction-value {
-    min-width: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    height: 2.25rem;
+    padding: 0 0.5rem;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, $text-primary 6%, transparent);
     color: color-mix(in srgb, $text-primary 75%, transparent);
     font-size: 0.8125rem;
     font-variant-numeric: tabular-nums;
+}
+
+.direction-value:focus-within {
+    box-shadow: 0 0 0 2px $looks-secondary;
+}
+
+.direction-value-input {
+    width: 2.5rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-variant-numeric: inherit;
     text-align: right;
+    outline: none;
+    appearance: textfield;
+}
+
+.direction-value-input::-webkit-outer-spin-button,
+.direction-value-input::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
 }
 
 .accent-row {

@@ -65,7 +65,10 @@ class GradientControls extends React.Component {
     constructor (props) {
         super(props);
         this.trackRef = React.createRef();
-        this.state = {dragging: null};
+        this.state = {
+            dragging: null,
+            directionDraft: null
+        };
     }
 
     update (patch) {
@@ -178,6 +181,21 @@ class GradientControls extends React.Component {
 
     handleDirectionSlider = e => {
         this.update({direction: parseInt(e.currentTarget.value, 10)});
+    };
+
+    handleDirectionInputChange = e => {
+        this.setState({directionDraft: e.currentTarget.value});
+    };
+
+    handleDirectionInputBlur = () => {
+        const value = parseInt(this.state.directionDraft, 10);
+        this.setState({directionDraft: null});
+        if (isNaN(value)) return;
+        this.update({direction: ((value % 360) + 360) % 360});
+    };
+
+    handleDirectionInputKeyDown = e => {
+        if (e.key === 'Enter') e.currentTarget.blur();
     };
 
     handlePresetClick = e => {
@@ -352,7 +370,22 @@ class GradientControls extends React.Component {
                                 aria-label={intl.formatMessage(messages.direction)}
                                 onChange={this.handleDirectionSlider}
                             />
-                            <span className={styles.directionValue}>{`${direction}°`}</span>
+                            <span className={styles.directionValue}>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="359"
+                                    step="1"
+                                    className={styles.directionValueInput}
+                                    value={this.state.directionDraft === null ?
+                                        direction : this.state.directionDraft}
+                                    aria-label={intl.formatMessage(messages.direction)}
+                                    onChange={this.handleDirectionInputChange}
+                                    onBlur={this.handleDirectionInputBlur}
+                                    onKeyDown={this.handleDirectionInputKeyDown}
+                                />
+                                <span aria-hidden="true">{'°'}</span>
+                            </span>
                         </div>
                     </div>
                 </div>

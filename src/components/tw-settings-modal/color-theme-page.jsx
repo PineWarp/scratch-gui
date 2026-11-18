@@ -15,7 +15,7 @@ import {
     setMenuBarText,
     MENU_BAR_TEXT_OPTIONS
 } from '../../lib/themes/menu-bar-accent.js';
-import {applyTheme} from '../../lib/themes/themePersistance.js';
+import {applyGuiColors} from '../../lib/themes/guiHelpers.js';
 
 import styles from './settings-modal.css';
 
@@ -39,13 +39,16 @@ class UnconnectedColorThemePage extends React.Component {
     handleAccentMenuBarChange (event) {
         setAccentMenuBar(event.target.checked);
         this.setState({accentMenuBar: event.target.checked});
-        applyTheme(this.props.theme);
+        // Re-apply only the GUI colors: applyTheme would also re-apply the theme's
+        // stored appearance snapshot, which may be stale and flip other settings
+        // (e.g. re-enabling frosted glass).
+        applyGuiColors(this.props.theme);
     }
 
     handleMenuBarTextChange (event) {
         setMenuBarText(event.target.value);
         this.setState({menuBarText: event.target.value});
-        applyTheme(this.props.theme);
+        applyGuiColors(this.props.theme);
     }
 
     render () {

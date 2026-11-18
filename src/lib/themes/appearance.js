@@ -21,7 +21,14 @@ const mergeStoredAppearance = appearance => ({
 });
 
 const applyAppearance = appearance => {
-    for (const module of MODULES) module.apply((appearance || {})[module.id] || null);
+    for (const module of MODULES) {
+        // Frosted glass is a global user preference stored on its own, not part of a
+        // theme. Always apply the stored value (off when unset) so an outdated theme
+        // snapshot can never turn it back on against the setting.
+        const value = module.id === 'frostedGlass' ?
+            module.read() : (appearance || {})[module.id];
+        module.apply(value || null);
+    }
 };
 
 export {
