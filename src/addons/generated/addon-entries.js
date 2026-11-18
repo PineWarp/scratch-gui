@@ -89,4 +89,5 @@ export default {
   "calculator": () => import(/* webpackChunkName: "addon-entry-calculator" */ "../addons/calculator/_runtime_entry.js"),
   "project-size-display": () => import(/* webpackChunkName: "addon-entry-project-size-display" */ "../addons/project-size-display/_runtime_entry.js"),
   "resize-selected-item": () => import(/* webpackChunkName: "addon-entry-resize-selected-item" */ "../addons/resize-selected-item/_runtime_entry.js"),
+  "performance-profiler": () => import(/* webpackChunkName: "addon-entry-performance-profiler" */ "../addons/performance-profiler/_runtime_entry.js"),
 };

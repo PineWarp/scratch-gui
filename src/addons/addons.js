@@ -12,6 +12,7 @@ const addons = [
     'mediarecorder',
     'drag-drop',
     'debugger',
+    'performance-profiler',
     'canvas-screenshot',
     'mute-project',
     'vol-slider',
