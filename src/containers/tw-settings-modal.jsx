@@ -20,6 +20,7 @@ import {getVanillaPalette, setVanillaPalette} from '../lib/mw-vanilla-palette';
 import {getEmbedGitOnSave, setEmbedGitOnSave} from '../lib/mw-embed-git-on-save';
 import {getDisableCloudVariables, setDisableCloudVariables} from '../lib/mw-editor-defaults.js';
 import LazyScratchBlocks from '../lib/tw-lazy-scratch-blocks';
+import {getSkipAssetLoading, setSkipAssetLoading} from '../lib/mw-skip-asset-loading';
 import AddonHooks from '../addons/hooks.js';
 import WindowManager from '../addons/window-system/window-manager';
 
@@ -81,6 +82,7 @@ class UsernameModal extends React.Component {
             enableStageResize: safeGetItem('mw:enable-stage-resize') !== 'false',
             windowAnimation: safeGetItem('mw:window-animation') !== 'false',
             scriptLazyLoading: LazyScratchBlocks.isScriptLazyLoadingEnabled(),
+    skipAssetLoading: getSkipAssetLoading(),
             hideOperatorArrows: getHideOperatorArrows(),
             vanillaPalette: getVanillaPalette(),
             embedGitOnSave: getEmbedGitOnSave(),
@@ -118,6 +120,7 @@ class UsernameModal extends React.Component {
             'handleCloudVariableServerChange',
             'handleWindowAnimationChange',
             'handleScriptLazyLoadingChange',
+    'handleSkipAssetLoadingChange',
             'handleHideOperatorArrowsChange',
             'handleVanillaPaletteChange',
             'handleEmbedGitOnSaveChange',
@@ -348,6 +351,12 @@ class UsernameModal extends React.Component {
         }
     }
 
+    handleSkipAssetLoadingChange (e) {
+        const enabled = e.target.checked;
+        this.setState({skipAssetLoading: enabled});
+        setSkipAssetLoading(this.props.vm, enabled);
+    }
+
     handleHideOperatorArrowsChange (e) {
         this.setState({hideOperatorArrows: e.target.checked});
         setHideOperatorArrows(e.target.checked);
@@ -451,6 +460,8 @@ class UsernameModal extends React.Component {
                 onWindowAnimationChange={this.handleWindowAnimationChange}
                 scriptLazyLoading={this.state.scriptLazyLoading}
                 onScriptLazyLoadingChange={this.handleScriptLazyLoadingChange}
+                skipAssetLoading={this.state.skipAssetLoading}
+                onSkipAssetLoadingChange={this.handleSkipAssetLoadingChange}
                 onHideOperatorArrowsChange={this.handleHideOperatorArrowsChange}
                 hideOperatorArrows={this.state.hideOperatorArrows}
                 onVanillaPaletteChange={this.handleVanillaPaletteChange}
