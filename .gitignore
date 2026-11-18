@@ -32,3 +32,5 @@ bun.lock
 /.workbuddy
 .env
 /temp
+
+.trae
