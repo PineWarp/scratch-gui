@@ -39,6 +39,8 @@ import TWRestorePointManager from '../../containers/tw-restore-point-manager.jsx
 import TWUnknownPlatformModal from '../../containers/tw-unknown-platform-modal.jsx';
 import TWInvalidProjectModal from '../../containers/tw-invalid-project-modal.jsx';
 import MWExtensionManagerModal from '../../containers/mw-extension-manager-modal.jsx';
+import VisualExtensionEditor from '../../containers/visual-extension-editor-modal.jsx';
+import VisualAddonEditor from '../../containers/visual-addon-editor-modal.jsx';
 import MWHelpModal from '../../containers/mw-help-modal.jsx';
 import MWProjectThemeModal from '../../containers/mw-project-theme-modal.jsx';
 import RoturSession from '../../containers/rotur-session.jsx';
@@ -75,8 +77,6 @@ const FractchWorkspace = React.lazy(() => import('../mw-fractch-workspace/fractc
 // jszip). Lazy load it so it does not slow down the first editor load; it is
 // only mounted when the user actually opens the git panel.
 const TWGitModal = React.lazy(() => import('../../containers/mw-git-modal.jsx'));
-const VisualExtensionEditor = React.lazy(() => import('../../containers/visual-extension-editor-modal.jsx'));
-const VisualAddonEditor = React.lazy(() => import('../../containers/visual-addon-editor-modal.jsx'));
 
 // Heavy modal / panel components that are not shown on the initial editor
 // load. Lazy-loading them removes their code (and transitive dependencies)

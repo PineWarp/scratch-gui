@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
+import bindAll from 'lodash.bindall';
 import {getType} from '../../lib/visual-node-engine/node-types.js';
 
 const PORT_COLORS_CLASS = kind => (kind === 'exec' ? 'exec' : 'expr');
@@ -26,16 +27,30 @@ const TITLE_H = 29;
 class NodeCanvas extends React.Component {
     constructor (props) {
         super(props);
+        bindAll(this, [
+            'toWorld',
+            'portPos',
+            'onWheel',
+            'onCanvasMouseDown',
+            'onMouseMove',
+            'onMouseUp',
+            'onNodeTitleMouseDown',
+            'onPortMouseDown',
+            'onPortMouseUp',
+            'onEdgeClick',
+            'onNodeMouseDown',
+            'onNodeDoubleClick'
+        ]);
+        this.wrapRef = React.createRef();
         this.state = {
             pan: {x: 60, y: 40},
             zoom: 1,
             dragNode: null,        // {id, dx, dy}
             panning: false,
             panStart: null,
-            linkFrom: null,        // {nodeId, port, isExec, x, y}（世界坐标）
+            linkFrom: null,        // {nodeId, port, isInput, x, y}（世界坐标）
             mouseWorld: null
         };
-        this.wrapRef = React.createRef();
     }
 
     // ---- 世界坐标换算 ----
@@ -61,7 +76,7 @@ class NodeCanvas extends React.Component {
         };
     }
 
-    onWheel = e => {
+    onWheel (e) {
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) {
             const factor = e.deltaY > 0 ? 0.9 : 1.1;
@@ -69,16 +84,16 @@ class NodeCanvas extends React.Component {
         } else {
             this.setState(s => ({pan: {x: s.pan.x - e.deltaX, y: s.pan.y - e.deltaY}}));
         }
-    };
+    }
 
     // ---- 画布空白：pan ----
-    onCanvasMouseDown = e => {
+    onCanvasMouseDown (e) {
         if (e.target === e.currentTarget || e.target.classList.contains('ve-canvas-wrap')) {
             this.setState({panning: true, panStart: {x: e.clientX, y: e.clientY, base: this.state.pan}});
         }
-    };
+    }
 
-    onMouseMove = e => {
+    onMouseMove (e) {
         if (this.state.panning && this.state.panStart) {
             this.setState({
                 pan: {
@@ -97,39 +112,34 @@ class NodeCanvas extends React.Component {
         if (this.state.linkFrom) {
             this.setState({mouseWorld: this.toWorld(e.clientX, e.clientY)});
         }
-    };
+    }
 
-    onMouseUp = e => {
+    onMouseUp () {
         if (this.state.panning) this.setState({panning: false, panStart: null});
         if (this.state.dragNode) this.setState({dragNode: null});
         if (this.state.linkFrom) {
-            // 尝试在鼠标落点找端口：命中节点则由 onPortDrop 判定
             this.setState({linkFrom: null, mouseWorld: null});
         }
-        void e;
-    };
+    }
 
     // ---- 节点拖动 ----
-    onNodeTitleMouseDown = (e, node) => {
+    onNodeTitleMouseDown (e, node) {
         e.stopPropagation();
         const world = this.toWorld(e.clientX, e.clientY);
         this.props.onSelectNode(node.id);
         this.setState({dragNode: {id: node.id, dx: world.x - node.x, dy: world.y - node.y}});
-    };
+    }
 
     // ---- 端口拖拽连线 ----
-    onPortMouseDown = (e, node, portName, isInput, def) => {
+    onPortMouseDown (e, node, portName, isInput, def) {
         e.stopPropagation();
         const pos = this.portPos(node, portName, isInput, def);
         this.props.onSelectNode(node.id);
-        this.setState({linkFrom: {nodeId: node.id, port: portName, isInput, x: pos.x, y: pos.y}});
-        // mouseWorld 初始
         const w = this.toWorld(e.clientX, e.clientY);
-        this.setState({mouseWorld: w});
-        // 松手在端口上：由 port onMouseUp 处理
-    };
+        this.setState({linkFrom: {nodeId: node.id, port: portName, isInput, x: pos.x, y: pos.y}, mouseWorld: w});
+    }
 
-    onPortMouseUp = (e, node, portName, isInput, def) => {
+    onPortMouseUp (e, node, portName, isInput) {
         e.stopPropagation();
         const link = this.state.linkFrom;
         if (!link) return;
@@ -151,25 +161,24 @@ class NodeCanvas extends React.Component {
         }
         this.props.onConnect(fromNode, fromPort, toNode, toPort);
         this.setState({linkFrom: null, mouseWorld: null});
-        void def;
-    };
+    }
 
     // ---- 连线点击删除 ----
-    onEdgeClick = (e, edge) => {
+    onEdgeClick (e, edge) {
         e.stopPropagation();
         this.props.onRemoveEdge(edge);
-    };
+    }
 
     // ---- 节点点击（选中） ----
-    onNodeMouseDown = (e, node) => {
+    onNodeMouseDown (e, node) {
         e.stopPropagation();
         this.props.onSelectNode(node.id);
-    };
+    }
 
-    onNodeDoubleClick = (e, node) => {
+    onNodeDoubleClick (e, node) {
         e.stopPropagation();
         this.props.onOpenSubGraph(node.id);
-    };
+    }
 
     renderPortDot (node, def, port, isInput) {
         const key = `${node.id}:${isInput ? 'i' : 'o'}:${port.name}`;
@@ -183,7 +192,7 @@ class NodeCanvas extends React.Component {
                         className={`ve-port-dot ${PORT_COLORS_CLASS(port.kind)}`}
                         title={port.label || port.name}
                         onMouseDown={e => this.onPortMouseDown(e, node, port.name, true, def)}
-                        onMouseUp={e => this.onPortMouseUp(e, node, port.name, true, def)}
+                        onMouseUp={e => this.onPortMouseUp(e, node, port.name, true)}
                     />
                 )}
                 <span>{port.label || port.name}</span>
@@ -192,7 +201,7 @@ class NodeCanvas extends React.Component {
                         className={`ve-port-dot ${PORT_COLORS_CLASS(port.kind)}`}
                         title={port.label || port.name}
                         onMouseDown={e => this.onPortMouseDown(e, node, port.name, false, def)}
-                        onMouseUp={e => this.onPortMouseUp(e, node, port.name, false, def)}
+                        onMouseUp={e => this.onPortMouseUp(e, node, port.name, false)}
                     />
                 )}
             </div>
@@ -202,14 +211,12 @@ class NodeCanvas extends React.Component {
     render () {
         const {graph, selectedNodeId} = this.props;
         const {pan, zoom, linkFrom, mouseWorld} = this.state;
-        // 节点宽度估：简单按节点类型固定 200~230
         const nodes = graph.nodes.map(n => {
             const def = getType(n.type);
             const width = def && (def.isExtensionBlock || def.isFunction) ? 230 : 200;
             return {...n, width, __def: def};
         });
 
-        // 连线路径（世界坐标 → SVG 内直接用世界坐标，viewport transform 处理）
         const edgePaths = graph.edges.map((edge, i) => {
             const fromNode = nodes.find(n => n.id === edge.from.node);
             const toNode = nodes.find(n => n.id === edge.to.node);
@@ -236,7 +243,6 @@ class NodeCanvas extends React.Component {
             );
         });
 
-        // 幽灵连线
         let ghost = null;
         if (linkFrom && mouseWorld) {
             const a = linkFrom.isInput ? mouseWorld : {x: linkFrom.x, y: linkFrom.y};
