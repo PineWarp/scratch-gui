@@ -1,3 +1,12 @@
+/**
+ * 毛玻璃设置页 v2 —— 重构版
+ *
+ * 相对 legacy 版新增：一键预设（轻盈/标准/浓郁）、饱和度滑块、边缘高光开关、
+ * 作用范围多选（7 类界面元素）。所有变更即时保存并生效。
+ * 旧版页面完整备份于 frosted-glass-page-legacy.jsx。
+ *
+ * 鸣谢：PYC5635（勇敢的菠萝🍍）
+ */
 import PropTypes from 'prop-types';
 import React from 'react';
 import {FormattedMessage, intlShape, injectIntl} from 'react-intl';
@@ -9,24 +18,39 @@ import {
     getFrostedGlassSettings,
     setFrostedGlassSettings,
     applyFrostedGlass,
-    DEFAULT_SETTINGS
+    DEFAULT_SETTINGS,
+    PRESETS,
+    TARGETS
 } from '../../lib/bl-frosted-glass.js';
 
 class FrostedGlassPage extends React.Component {
     constructor (props) {
         super(props);
         bindAll(this, [
+            'applyAndSave',
             'handleEnabledChange',
             'handleBlurRadiusChange',
             'handleOpacityChange',
-            'handleThemeBoostChange'
+            'handleThemeBoostChange',
+            'handleSaturationChange',
+            'handleEdgeHighlightChange',
+            'handleTargetChange',
+            'handlePreset',
+            'handleResetDefaults'
         ]);
-        const saved = getFrostedGlassSettings();
+        // 兼容 legacy 设置：缺省字段按默认值补全
+        const saved = getFrostedGlassSettings() || DEFAULT_SETTINGS;
         this.state = {
-            enabled: saved ? saved.enabled : DEFAULT_SETTINGS.enabled,
-            blurRadius: saved ? saved.blurRadius : DEFAULT_SETTINGS.blurRadius,
-            opacity: saved ? saved.opacity : DEFAULT_SETTINGS.opacity,
-            themeBoost: saved && saved.themeBoost != null ? saved.themeBoost : DEFAULT_SETTINGS.themeBoost
+            enabled: !!saved.enabled,
+            blurRadius: saved.blurRadius || DEFAULT_SETTINGS.blurRadius,
+            opacity: saved.opacity || DEFAULT_SETTINGS.opacity,
+            themeBoost: saved.themeBoost != null ? saved.themeBoost : DEFAULT_SETTINGS.themeBoost,
+            saturation: saved.saturation || DEFAULT_SETTINGS.saturation,
+            edgeHighlight: saved.edgeHighlight !== undefined ?
+                !!saved.edgeHighlight :
+                DEFAULT_SETTINGS.edgeHighlight,
+            // targets: null = 全部；数组 = 所选集合
+            targets: Array.isArray(saved.targets) ? saved.targets : null
         };
     }
 
@@ -46,27 +70,86 @@ class FrostedGlassPage extends React.Component {
 
     handleBlurRadiusChange (e) {
         const value = parseInt(e.target.value, 10);
-        if (!isNaN(value) && value >= 4 && value <= 24) {
+        if (!isNaN(value) && value >= 4 && value <= 30) {
             this.applyAndSave({blurRadius: value});
         }
     }
 
     handleOpacityChange (e) {
         const value = parseFloat(e.target.value);
-        if (!isNaN(value) && value >= 0.05 && value <= 0.35) {
+        if (!isNaN(value) && value >= 0.05 && value <= 0.4) {
             this.applyAndSave({opacity: value});
         }
     }
 
     handleThemeBoostChange (e) {
         const value = parseFloat(e.target.value);
-        if (!isNaN(value) && value >= 0.10 && value <= 0.55) {
+        if (!isNaN(value) && value >= 0.1 && value <= 0.55) {
             this.applyAndSave({themeBoost: value});
         }
     }
 
+    handleSaturationChange (e) {
+        const value = parseInt(e.target.value, 10);
+        if (!isNaN(value) && value >= 100 && value <= 220) {
+            this.applyAndSave({saturation: value});
+        }
+    }
+
+    handleEdgeHighlightChange (e) {
+        this.applyAndSave({edgeHighlight: e.target.checked});
+    }
+
+    /** 勾选 / 取消某个作用范围；全部勾选时归一化回 null（全选语义） */
+    handleTargetChange (targetId, checked) {
+        const current = this.state.targets === null ?
+            TARGETS.map(t => t.id) :
+            this.state.targets.slice();
+        const next = checked ?
+            (current.includes(targetId) ? current : current.concat(targetId)) :
+            current.filter(id => id !== targetId);
+        this.applyAndSave({targets: next.length === TARGETS.length ? null : next});
+    }
+
+    /** 一键预设：保留 enabled 与 targets，替换视觉参数组 */
+    handlePreset (presetKey) {
+        const preset = PRESETS[presetKey];
+        if (!preset) return;
+        this.applyAndSave({
+            enabled: true,
+            blurRadius: preset.blurRadius,
+            opacity: preset.opacity,
+            themeBoost: preset.themeBoost,
+            saturation: preset.saturation,
+            edgeHighlight: preset.edgeHighlight
+        });
+    }
+
+    handleResetDefaults () {
+        this.applyAndSave({
+            enabled: DEFAULT_SETTINGS.enabled,
+            blurRadius: DEFAULT_SETTINGS.blurRadius,
+            opacity: DEFAULT_SETTINGS.opacity,
+            themeBoost: DEFAULT_SETTINGS.themeBoost,
+            saturation: DEFAULT_SETTINGS.saturation,
+            edgeHighlight: DEFAULT_SETTINGS.edgeHighlight,
+            targets: DEFAULT_SETTINGS.targets
+        });
+    }
+
+    isTargetChecked (targetId) {
+        return this.state.targets === null || this.state.targets.includes(targetId);
+    }
+
     render () {
-        const {enabled, blurRadius, opacity, themeBoost} = this.state;
+        const {
+            enabled,
+            blurRadius,
+            opacity,
+            themeBoost,
+            saturation,
+            edgeHighlight
+        } = this.state;
 
         return (
             <Box className={styles.body}>
@@ -77,7 +160,7 @@ class FrostedGlassPage extends React.Component {
                     />
                 </div>
 
-                {/* Enable toggle */}
+                {/* 开关 */}
                 <div className={styles.setting}>
                     <div className={styles.label}>
                         <label>
@@ -95,9 +178,59 @@ class FrostedGlassPage extends React.Component {
                     </div>
                 </div>
 
+                {/* 一键预设 */}
+                {enabled && (
+                    <div className={styles.setting}>
+                        <div className={styles.label}>
+                            <FormattedMessage
+                                id="bl.frostedGlass.presets"
+                                defaultMessage="Presets"
+                            />
+                        </div>
+                        <div className={styles.buttonRow}>
+                            <button
+                                className={styles.button}
+                                onClick={() => this.handlePreset('light')}
+                            >
+                                <FormattedMessage
+                                    id="bl.frostedGlass.preset.light"
+                                    defaultMessage="Light"
+                                />
+                            </button>
+                            <button
+                                className={styles.button}
+                                onClick={() => this.handlePreset('standard')}
+                            >
+                                <FormattedMessage
+                                    id="bl.frostedGlass.preset.standard"
+                                    defaultMessage="Standard"
+                                />
+                            </button>
+                            <button
+                                className={styles.button}
+                                onClick={() => this.handlePreset('rich')}
+                            >
+                                <FormattedMessage
+                                    id="bl.frostedGlass.preset.rich"
+                                    defaultMessage="Rich"
+                                />
+                            </button>
+                            <button
+                                className={styles.button}
+                                onClick={this.handleResetDefaults}
+                            >
+                                <FormattedMessage
+                                    id="bl.frostedGlass.resetDefaults"
+                                    defaultMessage="Reset Defaults"
+                                />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {enabled && (
                     <React.Fragment>
-                        {/* Blur radius slider */}
+                        {/* 模糊强度 */}
                         <div className={styles.setting}>
                             <div className={styles.label}>
                                 <FormattedMessage
@@ -109,7 +242,7 @@ class FrostedGlassPage extends React.Component {
                             <input
                                 type="range"
                                 min="4"
-                                max="24"
+                                max="30"
                                 step="1"
                                 value={blurRadius}
                                 onChange={this.handleBlurRadiusChange}
@@ -117,11 +250,11 @@ class FrostedGlassPage extends React.Component {
                             />
                             <div className={styles.rangeLabels}>
                                 <span>4px</span>
-                                <span>24px</span>
+                                <span>30px</span>
                             </div>
                         </div>
 
-                        {/* Opacity slider */}
+                        {/* 不透明度 */}
                         <div className={styles.setting}>
                             <div className={styles.label}>
                                 <FormattedMessage
@@ -133,7 +266,7 @@ class FrostedGlassPage extends React.Component {
                             <input
                                 type="range"
                                 min="0.05"
-                                max="0.35"
+                                max="0.4"
                                 step="0.01"
                                 value={opacity}
                                 onChange={this.handleOpacityChange}
@@ -141,11 +274,11 @@ class FrostedGlassPage extends React.Component {
                             />
                             <div className={styles.rangeLabels}>
                                 <span>0.05</span>
-                                <span>0.35</span>
+                                <span>0.40</span>
                             </div>
                         </div>
 
-                        {/* Dark/light difference slider */}
+                        {/* 深浅补偿 */}
                         <div className={styles.setting}>
                             <div className={styles.label}>
                                 <FormattedMessage
@@ -156,7 +289,7 @@ class FrostedGlassPage extends React.Component {
                             </div>
                             <input
                                 type="range"
-                                min="0.10"
+                                min="0.1"
                                 max="0.55"
                                 step="0.05"
                                 value={themeBoost}
@@ -167,6 +300,77 @@ class FrostedGlassPage extends React.Component {
                                 <span>0.10</span>
                                 <span>0.55</span>
                             </div>
+                        </div>
+
+                        {/* 饱和度 */}
+                        <div className={styles.setting}>
+                            <div className={styles.label}>
+                                <FormattedMessage
+                                    id="bl.frostedGlass.saturation"
+                                    defaultMessage="Saturation"
+                                />
+                                <span className={styles.settingValue}>{saturation}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="100"
+                                max="220"
+                                step="5"
+                                value={saturation}
+                                onChange={this.handleSaturationChange}
+                                className={styles.gcSlider}
+                            />
+                            <div className={styles.rangeLabels}>
+                                <span>100%</span>
+                                <span>220%</span>
+                            </div>
+                        </div>
+
+                        {/* 边缘高光 */}
+                        <div className={styles.setting}>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={edgeHighlight}
+                                        onChange={this.handleEdgeHighlightChange}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.edgeHighlight"
+                                        defaultMessage="Edge Highlight"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* 作用范围 */}
+                        <div className={styles.setting}>
+                            <div className={styles.label}>
+                                <FormattedMessage
+                                    id="bl.frostedGlass.targetsTitle"
+                                    defaultMessage="Apply To"
+                                />
+                            </div>
+                            {TARGETS.map(target => (
+                                <div
+                                    key={target.id}
+                                    className={styles.label}
+                                >
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            checked={this.isTargetChecked(target.id)}
+                                            onChange={e => this.handleTargetChange(target.id, e.target.checked)}
+                                            className={styles.checkbox}
+                                        />
+                                        <FormattedMessage
+                                            id={target.labelId}
+                                            defaultMessage={target.defaultMessage}
+                                        />
+                                    </label>
+                                </div>
+                            ))}
                         </div>
                     </React.Fragment>
                 )}

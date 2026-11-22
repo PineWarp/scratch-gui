@@ -433,6 +433,16 @@ const localMessages = {
         'bl.frostedGlass.target.toast': '轻提示',
         'bl.frostedGlass.target.popover': '浮层面板',
 
+        // 毛玻璃 v2 新增设置项（英文由组件 defaultMessage 提供）
+        'bl.frostedGlass.presets': '预设',
+        'bl.frostedGlass.preset.light': '轻盈',
+        'bl.frostedGlass.preset.standard': '标准',
+        'bl.frostedGlass.preset.rich': '浓郁',
+        'bl.frostedGlass.resetDefaults': '恢复默认',
+        'bl.frostedGlass.saturation': '饱和度',
+        'bl.frostedGlass.edgeHighlight': '边缘高光',
+        'bl.frostedGlass.targetsTitle': '作用范围',
+
         // ------------------------------------------------------------------
         // 上游 zh-cn 漏翻（值还是英文）或整条缺失的中文补丁。
         // 这些 id 的英文由 @bilup/scratch-l10n 或组件里的 defaultMessage 提供，

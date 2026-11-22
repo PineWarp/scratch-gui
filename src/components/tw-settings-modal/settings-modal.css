@@ -404,6 +404,17 @@
     font-family: inherit;
     font-weight: bold;
 }
+
+/* 毛玻璃 v2：预设按钮行（水平排列的按钮组容器） */
+.buttonRow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.buttonRow .button {
+    font-size: 13px;
+    padding: 0.4rem 0.8rem;
+}
 .button:active, .button:focus-within {
     box-shadow: 0 0 0 3px $looks-transparent;
 }

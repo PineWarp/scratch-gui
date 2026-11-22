@@ -1,102 +1,71 @@
+/**
+ * 毛玻璃效果 v2 —— 重构版引擎（CSS 变量驱动 + 单一 style 节点 + 零运行时观察）
+ *
+ * 设计要点（相对 legacy 版的性能与功能改进）：
+ * 1. 单一 style 节点：所有玻璃效果由一个 <style id="bl-frosted-glass"> 承载，
+ *    legacy 版每个作用范围各挂一个节点（7 个），切换/主题变化时要重算多处。
+ * 2. CSS 变量驱动：blur / opacity / 饱和度 / 深浅补偿 / 边缘高光全部编译进
+ *    :root 变量（--fg-*），CSS 规则引用变量。参数变化只需更新变量块，
+ *    浏览器增量重算，不需要重新生成任何选择器。
+ * 3. 零 MutationObserver：CSS 规则是静态的，动态插入的弹窗/菜单天然命中选择器；
+ *    主题切换由主题系统（themes/appearance.js）显式调用 applyFrostedGlass，
+ *    不再全局监听 DOM（legacy 版的 subtree childList 监听 + 200ms 防抖重算
+ *    是持续的空闲开销来源）。
+ * 4. 设置项扩展：模糊强度、不透明度、深浅补偿、饱和度、边缘高光、
+ *    作用范围多选（7 类界面元素独立开关）、一键预设（轻盈/标准/浓郁）。
+ * 5. 兼容性：STORAGE_KEY、settings JSON 结构与导出 API 与 legacy 版完全兼容，
+ *    旧设置（无新增字段）自动按默认值补全；旧版实现完整备份于
+ *    bl-frosted-glass-legacy.js。
+ *
+ * 鸣谢：PYC5635（勇敢的菠萝🍍）
+ */
 import {getItem as getStorageItem} from './utils/safe-storage.js';
 
 const STORAGE_KEY = 'bl:frosted-glass';
+const STYLE_ID = 'bl-frosted-glass';
 
 const DEFAULT_SETTINGS = {
     enabled: false,
     blurRadius: 12,
     opacity: 0.25,
-    // "深浅比值"：深色下在用户透明度基础上额外加的幅度（浅色不加）。
-    // 越大 → 深浅两种主题的玻璃浓淡差异越明显；越小 → 越接近。
-    // 可调范围 0.10–0.55（见设置页滑块）
-    themeBoost: 0.15
+    // "深浅比值"：深色下在用户透明度基础上额外加的幅度（浅色不加）。0.10–0.55
+    themeBoost: 0.15,
+    // 玻璃提饱和度（%）：100 = 不提。120–200 观感较好
+    saturation: 150,
+    // 边缘高光：玻璃顶部 1px 高光 + 底部发丝线，增强"玻璃面板"立体感
+    edgeHighlight: true,
+    // 作用范围：null = 全部启用；数组 = 仅列出的 id 生效
+    targets: null
 };
 
-// Style tag ID 前缀
-const STYLE_ID_PREFIX = 'bl-frosted-glass-';
+// 一键预设（设置页直接写入的完整参数组）
+const PRESETS = {
+    light: {blurRadius: 8, opacity: 0.15, themeBoost: 0.12, saturation: 130, edgeHighlight: false},
+    standard: {blurRadius: 12, opacity: 0.25, themeBoost: 0.15, saturation: 150, edgeHighlight: true},
+    rich: {blurRadius: 18, opacity: 0.32, themeBoost: 0.2, saturation: 175, edgeHighlight: true}
+};
 
-// MutationObserver 防抖间隔 (ms) — 避免频繁 DOM 变化(如 xterm 终端渲染)导致性能问题
-const OBSERVER_DEBOUNCE_MS = 200;
-
-// 缓存上一次应用时的参数，避免重复更新 style 标签
-let _lastApplied = null;
-
-// 缓存主题 RGB 值，避免频繁调用 getComputedStyle()
-let _cachedRGB = null;
-
-// Target elements
-// CSS Module 类名格式: [name]_[local]_[hash:base64:5] (webpack config 配置)
-// 因此必须使用属性选择器 [class*="..."] 来匹配 CSS Module 转换后的类名
+// 作用范围清单（id 与 legacy 版一致，老用户已存设置可无损迁移）
 const TARGETS = [
-    // 窗口 — 编辑器内部弹出的窗口背景（如设置弹窗、扩展管理器等）
-    // 覆盖三类窗口形态:
-    //   1. windowed-modal 浮动窗口 → .addon-window(.addon-window-header + .addon-window-content > .modal-window-content)
-    //   2. react-modal (常规模态框) → [class*="modal-content"].ReactModal__Content (CSS Module)
-    //   3. AddonWindow / 命令式 createWindow / 复用窗口 → 内容直接挂在 .addon-window-content 下
-    {
-        id: 'window',
-        labelId: 'bl.frostedGlass.target.window',
-        defaultMessage: 'Window',
-        css: (blur, alpha, r, g, b) => {
-            // 玻璃面板色 / 卡片级淡玻璃底 / 底部发丝线
-            // glassTint 是"窗口主体"用的淡玻璃，故意比用户设定更淡：
-            // 窗口面积大，若用满 alpha 会像"半透明白板"，把背景压住 = 仍是纯色感。
-            const glass = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-            const glassTint = `rgba(${r}, ${g}, ${b}, ${(alpha * 0.55).toFixed(3)})`;
-            const cardGlass = `rgba(${r}, ${g}, ${b}, ${(alpha * 0.4).toFixed(3)})`;
-            // 发丝线：深色主题用黑色线（白线在黑玻璃上过亮），浅色主题用白色线
-            const isDarkRGB = r === 0 && g === 0 && b === 0;
-            const hairline = isDarkRGB ?
-                'inset 0 -1px 0 rgba(0, 0, 0, 0.28)' :
-                'inset 0 -1px 0 rgba(255, 255, 255, 0.15)';
-            // 模糊强度：窗口主体用满，标题栏/内容区减半，避免叠加后整体糊过头
-            const blurSoft = Math.max(4, Math.round(blur * 0.5));
-            // 完整 blur 表达式 —— 供 [S] 组"自承载玻璃浮层"直接拼进 backdrop-filter
-            const glassBlur = `blur(${blur}px) saturate(150%)`;
-            // 品牌色玻璃（[U] 组）：主题色按钮 / 大面积主题色块专用。
-            // 不能简单地把品牌色降 alpha 了事，因为 hover 态用的是 $xxx-secondary-dark
-            // 这类**另一个** token，透明化后与常态分不出层次。
-            // 解法：常态把品牌色混到 alpha，hover 态不换色而是加深比例（视觉上更实）。
-            const brandA = Math.round(alpha * 100); // 常态：与用户设定同档
-            const brandAHover = Math.min(96, brandA + 18); // hover：更实，模拟"压深"
-            // 品牌色混透的通用写法：color-mix 保留色相/饱和度，只降不透明度
-            const brandGlass = (token, fallback, pct) =>
-                `color-mix(in srgb, var(${token}, ${fallback}) ${pct}%, transparent)`;
-            // 状态叠加色（hover / 选中 / 激活 / 录制中）—— 与窗口底色**反极性**的低透明覆盖：
-            // 深色窗口叠白、浅色窗口叠黑。r/g/b 就是主题底色（深色 0,0,0 → 白；
-            // 浅色 255,255,255 → 黑），所以 255-r 天然得到反极性那张色。
-            // ⚠ 为什么状态态**不能**复用 glass / cardGlass：那两个是"同色相压暗"，
-            //   深色下等于黑叠黑（Δ 只有个位数色阶）、浅色下等于白叠白 ——
-            //   做状态反馈时等于没有反馈。历史 bug 全出自这一条：
-            //   侧栏菜单项 hover/选中没有底框、设置项 hover 没反应、调试器 tab
-            //   看不出选中…… 面积小的状态底不能用同色玻璃，必须给对比度。
-            // 档位经验值（与源 token 的观感对齐）：
-            //   hover 0.09 ≈ 源 $ui-tertiary / $badge-border 的视觉当量
-            //   持久态 0.13~0.15 ≈ 源 $badge-background / 选中行的强度
-            const stateTint = pct => `rgba(${255 - r}, ${255 - g}, ${255 - b}, ${pct})`;
-            // 窗口内容可能挂在三类容器之下（透明化规则需覆盖全部祖先）：
-            //   1. [class*="modal-content"] — React Modal / windowed-modal-content 内容容器
-            //   2. .modal-window-content — WindowedModal 内容容器
-            //   3. .addon-window-content — AddonWindow(React)、命令式 createWindow、
-            //      以及 windowed-modal 复用已有窗口分支 (contentContainer = window.contentElement)
-            const inside = '[class*="modal-content"], .modal-window-content, .addon-window-content';
-            // ⚠ insideDescendant 必须用 :is() 包住！
-            // inside 是"逗号列表"，直接拼 `'${inside} X'` 只会把 X 接到**最后一个**
-            // 分支上，前两个分支变成裸选择器（历史写法，全模块如此，一直没暴露问题
-            // 是因为裸的 [class*="modal-content"] / .modal-window-content 本来就该透明）。
-            // 但当 X 自己也是一个带 [class*=] 的属性选择器、且语义要求"必须是后代"时，
-            // 裸写会产生 [class*="a"][class*="b"] 这种"同一元素同时含两个子串"的
-            // 永假条件，规则静默失效。凡是既可能被 addon-window 也可能被
-            // React modal 承载的元素（如有），必须用 :is() 得到真正的后代匹配。
-            const insideDescendant =
-                ':is([class*="modal-content"], .modal-window-content, .addon-window-content) ';
-            return `
+    {id: 'window', labelId: 'bl.frostedGlass.target.window', defaultMessage: 'Window'},
+    {id: 'alert', labelId: 'bl.frostedGlass.target.alert', defaultMessage: 'Alerts'},
+    {id: 'notification', labelId: 'bl.frostedGlass.target.notification', defaultMessage: 'Notification'},
+    {id: 'toast', labelId: 'bl.frostedGlass.target.toast', defaultMessage: 'Toast'},
+    {id: 'menu-bar-menu', labelId: 'bl.frostedGlass.target.menuBarMenu', defaultMessage: 'Menu Bar Menus'},
+    {id: 'context-menu', labelId: 'bl.frostedGlass.target.contextMenu', defaultMessage: 'Context Menu'},
+    {id: 'popover', labelId: 'bl.frostedGlass.target.popover', defaultMessage: 'Popover / Panels'}
+];
+
+// 静态 CSS 规则（由 legacy 版选择器资产机械转换而来，全部引用 --fg-* 变量）
+const TARGET_CSS = {
+    "window": 
+`
 /* ============================================================
    毛玻璃核心策略（与主题背景同源判断）
    ------------------------------------------------------------
    1) 判断来源只有一处：getThemeRGB() 读 documentElement 的 --color-scheme，
       深色 → 纯黑(0,0,0)，浅色 → 纯白(255,255,255)。
-      下面所有 rgba(${r},${g},${b},... 都基于它，因此窗口不会再出现
+      下面所有 rgba(r,g,b,... 都基于它，因此窗口不会再出现
       "与背景无关的固定色块"。
    2) backdrop-filter 只放在最外层固定定位元素(.addon-window)上。
       若放在内部子元素上，子元素与编辑器之间隔了窗口元素，无法正确穿透模糊。
@@ -115,8 +84,8 @@ const TARGETS = [
            不限定 modal-window 类名，以覆盖所有插件窗口类型 (如 mw-alert-window 等)。 */
             [class*="addon-window"]:not([class*="addon-window-"]) {
                 background-color: transparent !important;
-                backdrop-filter: blur(${blur}px) saturate(150%) !important;
-                -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+                backdrop-filter: var(--fg-filter) !important;
+                -webkit-backdrop-filter: var(--fg-filter) !important;
             }
             /* addon 窗口标题栏 — 也有不透明背景（window-manager.js 内联 var(--ui-primary)），
                需透明化让毛玻璃透过。
@@ -133,7 +102,7 @@ const TARGETS = [
                底色用 cardGlass（比窗口主体更淡的一档）：标题栏必须能被辨认出来，
                否则窗口会退化成"一整块无分区的玻璃"，用户看不出哪里能拖动。 */
             [class*="addon-window"][class*="addon-window-header"] {
-                background-color: ${cardGlass} !important;
+                background-color: var(--fg-glass-card) !important;
                 backdrop-filter: none !important;
                 -webkit-backdrop-filter: none !important;
             }
@@ -141,10 +110,10 @@ const TARGETS = [
            所以它自己既是"面板"又是"唯一的模糊承载层"，必须用满 alpha 的 glass
            （它下面没有别的玻璃层可以借，用 glassTint 会糊不住 overlay）。 */
             [class*="modal-content"].ReactModal__Content {
-                background-color: ${glass} !important;
-                backdrop-filter: blur(${blur}px) saturate(150%) !important;
-                -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
-                box-shadow: ${hairline} !important;
+                background-color: var(--fg-glass) !important;
+                backdrop-filter: var(--fg-filter) !important;
+                -webkit-backdrop-filter: var(--fg-filter) !important;
+                box-shadow: var(--fg-hairline) !important;
             }
         /* React Modal 的遮罩层 — 原为 rgba(0,0,0,0.5) 一类深色实幕，
            会整体压暗背景，使毛玻璃"透出来的是黑"而不是编辑器界面。
@@ -152,9 +121,9 @@ const TARGETS = [
            注意：仅命中 overlay，不碰 modal-content 自身。 */
         [class*="modal-overlay"],
         .ReactModal__Overlay {
-            background-color: rgba(${r}, ${g}, ${b}, ${isDarkRGB ? 0.18 : 0.06}) !important;
-            backdrop-filter: blur(${blurSoft}px) !important;
-            -webkit-backdrop-filter: blur(${blurSoft}px) !important;
+            background-color: var(--fg-overlay-dim) !important;
+            backdrop-filter: blur(var(--fg-blur-soft)) !important;
+            -webkit-backdrop-filter: blur(var(--fg-blur-soft)) !important;
         }
         /* 窗口内容区 — 由"实色面板"改为"自承载的淡玻璃层"。
            为什么不能只铺 background-color：window-theme 皮肤（macOS / Windows 10）
@@ -169,10 +138,10 @@ const TARGETS = [
            [.addon-window-content { background: var(--ui-modal-background) !important; }]
            （注入在 <body> 末尾、同特异性）覆盖成纯色，内容区毛玻璃同样失效。 */
         [class*="addon-window"][class*="addon-window-content"] {
-            background-color: ${glassTint} !important;
-            box-shadow: ${hairline} !important;
-            backdrop-filter: blur(${blurSoft}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blurSoft}px) saturate(150%) !important;
+            background-color: var(--fg-glass-tint) !important;
+            box-shadow: var(--fg-hairline) !important;
+            backdrop-filter: var(--fg-filter-soft) !important;
+            -webkit-backdrop-filter: var(--fg-filter-soft) !important;
         }
         /* WindowedModal 内容容器 — 退为透明，玻璃面板已由 .addon-window-content 承担 */
         .modal-window-content {
@@ -185,7 +154,7 @@ const TARGETS = [
            这里与其它区域同样处理：透明融入玻璃面板，只保留一条分隔线。
            类名来自 CSS Module，格式 [name]_[local]_[hash:base64:5]，
            故用 [class*="modal-sidebar_sidebar"] 前缀匹配（同时覆盖 sidebarWide/Narrow）。
-           注意 .layout 与 .content 的兜底值已在上面 ${inside} [class*="layout"] /
+           注意 .layout 与 .content 的兜底值已在上面 [class*="modal-content"], .modal-window-content, .addon-window-content [class*="layout"] /
            [class*="content"] 规则中透明化，这里补的是特异性更明确的 .sidebar 一条。 */
         [class*="modal-sidebar_sidebar"] {
             background-color: transparent !important;
@@ -197,7 +166,7 @@ const TARGETS = [
         /* 侧栏菜单项（设置窗口左侧导航）的 hover / 选中态底框。
            源样式：hover 铺 $ui-tertiary（深色 #2e2e2e），选中铺 $looks-transparent
            （品牌色 0.35）—— 两者都是**带对比度**的底色，是"当前在哪一页"的唯一指示。
-           历史写法把它们统一改成 ${glass}，而 ${glass} 是
+           历史写法把它们统一改成 var(--fg-glass)，而 var(--fg-glass) 是
            rgba(主题底色, alpha)：深色下 rgba(0,0,0,.25)、浅色下 rgba(255,255,255,.25)。
            它与侧栏自己的玻璃底**同色相**，叠上去等于没叠 ——
            于是 hover 划过没反应、当前页也没有底框（用户截图反馈的 bug）。
@@ -257,7 +226,7 @@ const TARGETS = [
             恰好含 "modal_header" 子串的类名。
        最终只命中 modal.css 那个 header 容器本身。 */
         [class*="modal_header"]:not([class*="modal_headerItem"]):not([class*="modal_headerImage"]):not([class*="modal-sidebar_"]):not([class*="telemetry-modal_"]) {
-            background-color: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
         }
         /* modal.css 的 .body（modal_body_<hash>）— 由各 modal 自己铺 $ui-modal-background。
            同样排除侧栏的 modal-sidebar_body，避免改到侧栏内部结构。 */
@@ -277,22 +246,22 @@ const TARGETS = [
        它占满视口，需要自承载模糊，因此用满 alpha 的 glass。 */
         [class*="modal-content"][class*="modal_fullScreen"],
         [class*="modal-content"][class*="full-screen"] {
-            background-color: ${glass} !important;
-            backdrop-filter: blur(${blur}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+            background-color: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
 
 /* [C] 分类色标题栏 — 这类标题栏用的是 $pen-tertiary / $data-primary 等
        品牌色（如 connection-modal 的绿色标题栏 #0B8E69），不是 --ui-* 变量，
-       所以前面的 ${r}/${g}/${b} 主题色规则完全没碰到它，它会以纯品牌色保留下来。
+       所以前面的 r/g/b 主题色规则完全没碰到它，它会以纯品牌色保留下来。
        这里不清除品牌色（那会丢掉窗口的类别识别），而是改成半透明的同色玻璃：
        用 color-mix 把品牌色与透明混合到 alpha 档位，再补上模糊。
        这样既保留"这是设备连接窗口"的颜色语义，又不再是纯色块。
        覆盖已知的分类色标题栏：connection-modal。 */
         [class*="connection-modal_header"] {
-            background-color: color-mix(in srgb, var(--pen-tertiary, #0B8E69) ${Math.round(alpha * 100)}%, transparent) !important;
-            backdrop-filter: blur(${blurSoft}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blurSoft}px) saturate(150%) !important;
+            background-color: color-mix(in srgb, var(--pen-tertiary, #0B8E69) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter-soft) !important;
+            -webkit-backdrop-filter: var(--fg-filter-soft) !important;
         }
 
 /* [D] 具体窗口组件的根容器实底 — 逐个 modal 的顶层容器铺了
@@ -328,13 +297,13 @@ const TARGETS = [
        改为与窗口内容同源的淡玻璃；行 hover 用反极性状态色，
        避免深色玻璃上黑叠黑、看不出悬停反馈。 */
         [class*="project-assets-manager_tree"] {
-            background-color: ${glassTint} !important;
-            background: ${glassTint} !important;
+            background-color: var(--fg-glass-tint) !important;
+            background: var(--fg-glass-tint) !important;
         }
         [class*="project-assets-manager_folder-row"]:hover,
         [class*="project-assets-manager_file-row"]:hover {
-            background-color: ${stateTint(0.09)} !important;
-            background: ${stateTint(0.09)} !important;
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
 
 /* [E] 大面积装饰色块 — 这类不是窗口底层，而是内容里的一块彩色底板
@@ -345,7 +314,7 @@ const TARGETS = [
        同时给它一个很淡的玻璃底（cardGlass）替代原本的品牌色块，
        避免插画直接贴在编辑器背景上失去承载感。 */
         [class*="browser-modal_illustration"] {
-            background-color: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
         }
 
 /* 让窗口内部所有"区域级"容器透明，露出玻璃面板 */
@@ -375,29 +344,29 @@ const TARGETS = [
            - [class*="bottom-area"]: connection-modal 底部；[class*="top-area"]: 顶部工具条
            - [class*="search-row"]: library 搜索栏
            - [class*="root"]: 插件窗口内容根元素 (help-modal, share-window) */
-        ${inside} [class*="body"],
-            ${inside} [class*="header"],
-            ${inside} [class*="footer"],
-            ${inside} [class*="layout"],
-            ${inside} [class*="content"],
-            ${inside} [class*="main"],
-            ${inside} [class*="page"],
-            ${inside} [class*="root"],
-            ${inside} [class*="bottom-area"],
-            ${inside} [class*="top-area"],
-            ${inside} [class*="search-row"],
-            ${inside} [class*="section"],
-            ${inside} [class*="intro"] {
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="body"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="header"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="footer"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="layout"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="content"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="main"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="page"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="root"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="bottom-area"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="top-area"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="search-row"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="section"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="intro"] {
             background-color: transparent !important;
         }
         /* 卡片级内容单元 (card/panel/tile) 不做纯色也不全透明，
            铺一层淡玻璃底维持层次感；深色下 alpha 已整体提升，淡底同样更暗保证可读。
            这里用 glass 而非 cardGlass：卡片之上还叠着内容区的 glassTint，
            若卡片也用 cardGlass，两层相加仍偏淡、卡片边界看不出来。 */
-        ${inside} [class*="card"],
-            ${inside} [class*="panel"],
-            ${inside} [class*="tile"] {
-            background-color: ${glass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="card"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="panel"],
+            [class*="modal-content"], .modal-window-content, .addon-window-content [class*="tile"] {
+            background-color: var(--fg-glass) !important;
         }
         /* ---- [W] 去叠色：上色只作用于"最外层"的卡片本体，内部子部件不再重复上色 ----
            为什么必须要这一步：CSS Module 编译出的类名是 文件名_local_哈希，
@@ -424,7 +393,7 @@ const TARGETS = [
              · 加新上色族时的扫描办法：列出 src 下所有 css 中"选择器含该关键字
                且声明了不透明 background/background-color"的 local，
                与上色族的类名取交集 —— 交集里除了族根，就是需要进白名单的子部件。 */
-        ${insideDescendant}:where([class*="card"], [class*="panel"], [class*="tile"])
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) :where([class*="card"], [class*="panel"], [class*="tile"])
             :is([class*="card"], [class*="panel"], [class*="tile"]):where(
                 :not([class*="card-icon"]):not([class*="card-loaded-check"]):not([class*="card-inset-icon"]):
                 :not([class*="left-card"]):not([class*="ct-card-swatch"]):not([class*="chart-card"]):
@@ -432,7 +401,7 @@ const TARGETS = [
             background-color: transparent !important;
         }
         /* custom-procedures 的 .container 使用单独的 background 属性，用 background 简写覆盖 */
-        ${inside} [class*="custom-procedures_container"] {
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="custom-procedures_container"] {
             background: transparent !important;
         }
         /* ---- 纯色 → 毛玻璃（与背景同款）第二波：功能窗口/行块/独立浮层 ----
@@ -464,16 +433,16 @@ const TARGETS = [
 
         /* [G] 素材库卡片 / 协作窗口用户·请求行 / Git 窗口行卡 / 登录特性卡 /
            遥测单选行块（CSS Module 前缀精确匹配，不误伤同名其它组件） */
-        ${inside} [class*="library-item_library-item"],
-        ${inside} [class*="collaboration-modal_userItem"],
-        ${inside} [class*="collaboration-modal_requestItem"],
-        ${inside} [class*="git-modal_remoteItem"],
-        ${inside} [class*="git-modal_remoteRow"],
-        ${inside} [class*="git-modal_conflictRow"],
-        ${inside} [class*="rotur-login-modal_feature"],
-        ${inside} [class*="rotur-login-modal_feature-coming"],
-        ${inside} [class*="telemetry-modal_radio-buttons"] label {
-            background-color: ${glass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="library-item_library-item"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_userItem"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_requestItem"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="git-modal_remoteItem"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="git-modal_remoteRow"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="git-modal_conflictRow"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="rotur-login-modal_feature"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="rotur-login-modal_feature-coming"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="telemetry-modal_radio-buttons"] label {
+            background-color: var(--fg-glass) !important;
         }
         /* ---- [W] 去叠色（素材库卡片同族）—— 与上面 card/panel/tile 同一原理：
            .library-item 的子部件 .library-item-image-container-wrapper /
@@ -485,7 +454,7 @@ const TARGETS = [
              .library-item-inset-image-container（内嵌图标底，[U-2c] 另有专门规则）
            其余族（git-modal 的 remoteItem/chip、rotur 的 feature 等）经扫描确认
            没有"同族子部件 + 本身有实底"的情况，故不铺开，避免误伤。 */
-        ${insideDescendant}:where([class*="library-item_library-item"])
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) :where([class*="library-item_library-item"])
             :is([class*="library-item_library-item"]):where(
                 :not([class*="library-item-image"])
                 :not([class*="library-item-inset-image"]) ) {
@@ -493,15 +462,15 @@ const TARGETS = [
         }
         /* [G] 设置窗口里的大块行/编辑区（菜单栏编排行、主题快照、自定义主题编辑器、
            字体行、样式/对齐选择卡、分段/切换轨道）— 玻璃化而非实底 */
-        ${inside} [class*="settings-modal_menu-bar-row"],
-        ${inside} [class*="settings-modal_ct-snapshot"],
-        ${inside} [class*="settings-modal_custom-themes-editor"],
-        ${inside} [class*="settings-modal_font-row"],
-        ${inside} [class*="settings-modal_style-option"],
-        ${inside} [class*="settings-modal_align-option"],
-        ${inside} [class*="settings-modal_ct-tabs"],
-        ${inside} [class*="settings-modal_ct-mode-switch"] {
-            background-color: ${glass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_menu-bar-row"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_ct-snapshot"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_custom-themes-editor"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_font-row"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_style-option"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_align-option"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_ct-tabs"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_ct-mode-switch"] {
+            background-color: var(--fg-glass) !important;
         }
         /* [G] 设置窗口的功能开关行（Setting 组件）— 这是"勾选后整行变实色块"的典型：
            设置项用 .setting 容器，勾选时加 .active 类，CSS 里 .setting.active 铺
@@ -513,24 +482,24 @@ const TARGETS = [
            一眼能看出这一行是开启的），hover 用 stateTint(0.09)（更淡的悬停提示）。
            注意 .setting 本身无背景（transparent），只有 active/hover 才有色 ——
            所以这两个未开启的开关行（"无限克隆"等）本来就是透的，无需处理。 */
-        ${insideDescendant}[class*="settings-modal_setting"].active,
-        ${insideDescendant}[class*="settings-modal_setting"][class*="settings-modal_active"] {
-            background-color: ${stateTint(0.15)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="settings-modal_setting"].active,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="settings-modal_setting"][class*="settings-modal_active"] {
+            background-color: var(--fg-active) !important;
         }
-        ${insideDescendant}[class*="settings-modal_setting"]:hover,
-        ${insideDescendant}[class*="settings-modal_setting"]:focus-within {
-            background-color: ${stateTint(0.09)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="settings-modal_setting"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="settings-modal_setting"]:focus-within {
+            background-color: var(--fg-hover) !important;
         }
         /* 同理处理设置窗口里其它"选中/激活"态的实色行（对齐选择卡选中态等）。
            · .align-option-selected 源样式铺 $looks-light-transparent（品牌色 15%）；
              同样不敢直接吃这个变量（个别主题里它是透明的），从 --looks-secondary 现混。 */
            · .style-option-selected 源样式与未选中同为 $ui-primary、靠蓝边 + 外发光区分，
              已由 [G] 玻璃化；这里补一层 stateTint 让选中的卡片本体也更亮一档。 */
-        ${insideDescendant}[class*="settings-modal_align-option-selected"] {
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="settings-modal_align-option-selected"] {
             background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) 15%, transparent) !important;
         }
-        ${insideDescendant}[class*="settings-modal_style-option-selected"] {
-            background-color: ${stateTint(0.13)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="settings-modal_style-option-selected"] {
+            background-color: var(--fg-active) !important;
         }
         /* [G] 其它窗口里的"行/状态块"实色 — 通病是：
            行本身 transparent，但 hover / 选中 / 状态态用 $badge-background（深色 #16202c）
@@ -546,21 +515,21 @@ const TARGETS = [
              · 语义态（status-good 中性信息蓝 / status-bad 橙）→ 还原 token，
                否则"成功/出错"这条最重要的信息会被玻璃抹平
              · 静态卡（.summary > div）→ 仍用 glass，它是面板不是状态 */
-        ${insideDescendant}[class*="project-metadata-modal_row"]:hover,
-        ${insideDescendant}[class*="shortcut-manager_shortcutRow"]:hover {
-            background-color: ${stateTint(0.09)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-metadata-modal_row"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="shortcut-manager_shortcutRow"]:hover {
+            background-color: var(--fg-hover) !important;
         }
-        ${insideDescendant}[class*="shortcut-manager_shortcutRowRecording"] {
-            background-color: ${stateTint(0.15)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="shortcut-manager_shortcutRowRecording"] {
+            background-color: var(--fg-active) !important;
         }
-        ${insideDescendant}[class*="project-metadata-modal_status-good"] {
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-metadata-modal_status-good"] {
             background-color: color-mix(in srgb, var(--badge-background, #16202c) 85%, transparent) !important;
         }
-        ${insideDescendant}[class*="project-metadata-modal_status-bad"] {
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-metadata-modal_status-bad"] {
             background-color: var(--error-transparent, hsla(30, 100%, 55%, 0.25)) !important;
         }
-        ${insideDescendant}[class*="project-metadata-modal_summary"] > div {
-            background-color: ${glass} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-metadata-modal_summary"] > div {
+            background-color: var(--fg-glass) !important;
         }
         /* [G] 项目分析窗口统计卡/图表/评分区/扩展列表（global 类） */
         .sa-analyze-section,
@@ -568,8 +537,8 @@ const TARGETS = [
         .sa-analyze-chart-container,
         .sa-analyze-score-details,
         .sa-analyze-extension-item {
-            background: ${glass} !important;
-            background-color: ${glass} !important;
+            background: var(--fg-glass) !important;
+            background-color: var(--fg-glass) !important;
         }
 
 /* [H] 输入框 / 搜索框 / 文本域 —— 此前完全没覆盖的一整类逃逸实色。
@@ -587,30 +556,30 @@ const TARGETS = [
        注意排除与主题无关的固定色控件：
          · [type="color"] 是取色器，必须显示真实颜色，不能玻璃化
          · [type="range"] / slider 的轨道是语义指示器，保留
-       ⚠ 用 ${inside} 前缀限定在窗口内，避免影响编辑器主体里的输入框。 */
-        ${inside} input[type="text"],
-        ${inside} input[type="search"],
-        ${inside} input[type="number"],
-        ${inside} input[type="email"],
-        ${inside} input[type="password"],
-        ${inside} input[type="url"],
-        ${inside} input[type="tel"],
-        ${inside} input:not([type]),
-        ${inside} textarea,
-        ${inside} [class*="input_input-form"],
-        ${inside} [class*="input_input-small"] {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+       ⚠ 用 [class*="modal-content"], .modal-window-content, .addon-window-content 前缀限定在窗口内，避免影响编辑器主体里的输入框。 */
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="text"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="search"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="number"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="email"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="password"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="url"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="tel"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content input:not([type]),
+        [class*="modal-content"], .modal-window-content, .addon-window-content textarea,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="input_input-form"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="input_input-small"] {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* 输入框的 focus/hover 态：源样式改的是 border-color + box-shadow，
            不动背景，所以这里只需保证背景仍是玻璃（上面已覆盖），无需额外规则。
            但部分组件（如 settings-modal .setting input）会给 focus 加实底，补一条兜底。 */
-        ${inside} input[type="text"]:focus,
-        ${inside} input[type="search"]:focus,
-        ${inside} input[type="number"]:focus,
-        ${inside} textarea:focus {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="text"]:focus,
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="search"]:focus,
+        [class*="modal-content"], .modal-window-content, .addon-window-content input[type="number"]:focus,
+        [class*="modal-content"], .modal-window-content, .addon-window-content textarea:focus {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* 取色器反例：固定色控件，必须保留真实颜色 → 显式声明不覆盖它的背景。
            （不写任何规则即为不改，这里只作为文档锚点，避免以后误加。） */
@@ -624,12 +593,12 @@ const TARGETS = [
        ct-mode-switch / custom-themes-editor 已在上面 [G] 组玻璃化，这里补齐
        剩下几个此前漏掉的：
        注：这些多数是"容器/轨道"而非内容卡，用 cardGlass 更贴合层级。 */
-        ${inside} [class*="settings-modal_select"],
-        ${inside} [class*="settings-modal_ct-panel"],
-        ${inside} [class*="settings-modal_ct-action-card"],
-        ${inside} [class*="settings-modal_experimental-group"] {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_select"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_ct-panel"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_ct-action-card"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_experimental-group"] {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* ct-mode-switch 是"轨道"（外层浅底 + 内层按钮），轨道比按钮更淡才对：
            上面 [G] 已把它设成 glass，这里不重复，交给内层 .ct-mode-btn-selected
@@ -652,21 +621,21 @@ const TARGETS = [
        ⚠ 排除 .addon-window-btn（窗控按钮）：macos 皮肤用它做红黄绿三个圆点，
          那是设计意图；windows10 皮肤按钮本来透明。都不能玻璃化。 */
         [class*="addon-window"]:not([class*="addon-window-"]) {
-            backdrop-filter: blur(${blur}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         [class*="addon-window"][class*="addon-window-header"] {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
         }
         [class*="addon-window"][class*="addon-window-content"] {
-            background-color: ${glassTint} !important;
-            background: ${glassTint} !important;
-            box-shadow: ${hairline} !important;
-            backdrop-filter: blur(${blurSoft}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blurSoft}px) saturate(150%) !important;
+            background-color: var(--fg-glass-tint) !important;
+            background: var(--fg-glass-tint) !important;
+            box-shadow: var(--fg-hairline) !important;
+            backdrop-filter: var(--fg-filter-soft) !important;
+            -webkit-backdrop-filter: var(--fg-filter-soft) !important;
         }
         /* window-theme 皮肤在 .addon-window-title 上不动背景，只动排版，无需处理。
            但皮肤把 .addon-window 的 border-radius / box-shadow 也改了 —— 那是外观
@@ -689,37 +658,37 @@ const TARGETS = [
         }
         .sa-calculator .calc-btn-number,
         .sa-calculator .calc-btn-function {
-            background: ${cardGlass} !important;
-            background-color: ${cardGlass} !important;
+            background: var(--fg-glass-card) !important;
+            background-color: var(--fg-glass-card) !important;
         }
         .sa-calculator .calc-btn-operation,
         .sa-calculator .calc-btn-equals {
-            background: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            border-color: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            border-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         .sa-calculator .calc-btn-equals {
-            background: ${brandGlass('--motion-primary', '#4c97ff', brandA)} !important;
-            background-color: ${brandGlass('--motion-primary', '#4c97ff', brandA)} !important;
+            background: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            background-color: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct), transparent) !important;
         }
         /* hover：不换 token（否则会跳到 $xxx-secondary-dark 的另一个色），
            而是把混合比例推高 —— 视觉上"更实"，层次与原来一致 */
         .sa-calculator .calc-btn-operation:hover {
-            background: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
-            border-color: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
+            border-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
         }
         .sa-calculator .calc-btn-equals:hover {
-            background: ${brandGlass('--motion-primary', '#4c97ff', brandAHover)} !important;
-            background-color: ${brandGlass('--motion-primary', '#4c97ff', brandAHover)} !important;
-            border-color: ${brandGlass('--motion-primary', '#4c97ff', brandAHover)} !important;
+            background: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
+            background-color: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
+            border-color: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
         }
         .sa-calculator .calc-btn-number:hover,
         .sa-calculator .calc-btn-function:hover {
-            background: ${stateTint(0.09)} !important;
-            background-color: ${stateTint(0.09)} !important;
+            background: var(--fg-hover) !important;
+            background-color: var(--fg-hover) !important;
         }
 
         /* [J-2] 待办插件窗口（todo）
@@ -733,50 +702,50 @@ const TARGETS = [
            var(--looks-secondary) 是主操作按钮，保留。
            注意：todo 窗口用 createWindow，祖先有 .addon-window-content，
            所以带窗口前缀即可命中，不必写 .sa-todo- 全局前缀。
-           ⚠ 前缀必须是 ${insideDescendant}（:is(...) 形式）而不是 ${inside}：
+           ⚠ 前缀必须是 :is([class*="modal-content"], .modal-window-content, .addon-window-content) （:is(...) 形式）而不是 [class*="modal-content"], .modal-window-content, .addon-window-content：
              后者是逗号列表，直接拼只会把选择器接到最后一个分支上，
              另外两个分支退化成裸的 [class*="modal-content"] / .modal-window-content
              —— 结果是"把整块窗口内容区当成目标元素涂一遍"，真正的目标反而没命中。 */
-        ${insideDescendant}.sa-todo-list-ele,
-        ${insideDescendant}.sa-todo-modal-preview,
-        ${insideDescendant}.sa-todo-mode-tab-btn.enable,
-        ${insideDescendant}.sa-todo-mode-tab-btn.unable,
-        ${insideDescendant}.sa-todo-group-btn:not(.active) {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-list-ele,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-modal-preview,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-mode-tab-btn.enable,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-mode-tab-btn.unable,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-group-btn:not(.active) {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
-        ${insideDescendant}.sa-todo-mode-tab-btn.enable:hover,
-        ${insideDescendant}.sa-todo-mode-tab-btn.unable:hover,
-        ${insideDescendant}.sa-todo-mode-tab-btn.enable:active,
-        ${insideDescendant}.sa-todo-mode-tab-btn.unable:active {
-            background-color: ${stateTint(0.09)} !important;
-            background: ${stateTint(0.09)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-mode-tab-btn.enable:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-mode-tab-btn.unable:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-mode-tab-btn.enable:active,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) .sa-todo-mode-tab-btn.unable:active {
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
 
         /* [J-3] 变量管理插件窗口（variable-manager）
            根 .mw-vm 本就是 transparent，无需处理；但里面几处实色要玻璃化：
              .mw-vm-search(66) 铺 var(--input-background) → 已被上面 [H] 的
-               ${inside} 输入框规则覆盖（它就是 <input>），此处不重复
+               [class*="modal-content"], .modal-window-content, .addon-window-content 输入框规则覆盖（它就是 <input>），此处不重复
              .mw-vm-value(328) 铺 var(--input-background) → 它是 textarea/input，
                同样被 [H] 覆盖
              .mw-vm-section-head(205) 铺 var(--ui-modal-background) → 需处理
                  （注意它是 position:sticky，必须不透明一点否则滚动内容会透出来，
                   所以用 glass 而非 cardGlass，保证文字压得住）
              .mw-vm-name:focus(295) 铺 var(--input-background) → 被 [H] focus 规则覆盖 */
-        ${inside} .mw-vm-section-head {
-            background: ${glass} !important;
-            background-color: ${glass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content .mw-vm-section-head {
+            background: var(--fg-glass) !important;
+            background-color: var(--fg-glass) !important;
         }
-        ${inside} .mw-vm-segment {
-            background: ${cardGlass} !important;
-            background-color: ${cardGlass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content .mw-vm-segment {
+            background: var(--fg-glass-card) !important;
+            background-color: var(--fg-glass-card) !important;
         }
         /* .mw-vm-seg-active 铺 var(--looks-secondary) 品牌色 → 保留 */
 
         /* [J-4] 其它插件浮层/面板的零散实色 —— 逐个核对过源文件后统一处理。
            dev-inspector / simple-project-analyzer / settings-window 等已在
            上面 T 组或其它规则里透明化，这里补剩余几处。 */
-        ${inside} [class*="settings-window_"] {
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-window_"] {
             background-color: transparent !important;
             background: transparent !important;
         }
@@ -791,13 +760,13 @@ const TARGETS = [
        $ui-black-transparent（本身已是半透明），一并统一。
        .keycap / .hintKey 铺 $ui-primary 是"键帽"控件，保留实感更易读
        （它们尺寸小、成对出现，不是整片纯色）—— 判定为控件级，不改。 */
-        ${inside} [class*="shortcut-manager_toolbar"] {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="shortcut-manager_toolbar"] {
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
         }
-        ${insideDescendant}[class*="shortcut-manager_resetAllButton"]:hover {
-            background-color: ${stateTint(0.09)} !important;
-            background: ${stateTint(0.09)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="shortcut-manager_resetAllButton"]:hover {
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
         /* .recordPrompt 铺 $looks-transparent（本就半透明）+ 虚线边框，保留。
            .sectionDivider 用 border-top 虚线，不是背景，无需处理。 */
@@ -819,22 +788,22 @@ const TARGETS = [
         /* .currentUser / .privacyOptionActive 源样式铺 $looks-transparent（品牌色 0.35）
            —— 但个别主题里 --looks-transparent 会算成透明（见上面侧栏那条的说明），
            所以这里也从 --looks-secondary 现混，保证"这是当前选中的隐私项"看得出来。 */
-        ${insideDescendant}[class*="collaboration-modal_currentUser"],
-        ${insideDescendant}[class*="collaboration-modal_privacyOptionActive"] {
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="collaboration-modal_currentUser"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="collaboration-modal_privacyOptionActive"] {
             background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) 33%, transparent) !important;
             background: color-mix(in srgb, var(--looks-secondary, #4c97ff) 33%, transparent) !important;
         }
-        ${insideDescendant}[class*="collaboration-modal_privacyOption"]:hover {
-            background-color: ${stateTint(0.09)} !important;
-            background: ${stateTint(0.09)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="collaboration-modal_privacyOption"]:hover {
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
 
 /* [M] 素材库（library）搜索行 —— 与 [K] 的 toolbar 同源问题，
        是窗口顶部一条通栏实底（$ui-modal-background）。 */
-        ${inside} [class*="library_search-row"],
-        ${inside} [class*="library_searchRow"] {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="library_search-row"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="library_searchRow"] {
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
         }
 
 /* [S] 自承载玻璃浮层群 —— body 级 append、无 addon-window 祖先，
@@ -848,9 +817,9 @@ const TARGETS = [
 
 /* [S-1] 命令面板 spotlight */
         .sa-mcp-container {
-            background-color: ${glass} !important;
-            backdrop-filter: blur(${blur}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+            background-color: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         .sa-mcp-preview-container,
         .sa-mcp-status-bar {
@@ -863,15 +832,15 @@ const TARGETS = [
        固定定位在右下角、只盖住舞台/画布一角，底下就是编辑器实色 → 自承载玻璃成立。
        投影（box-shadow）保留，浮层的立体感靠它而不是靠底色。 */
         .sa-screenshot-preview {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
-            backdrop-filter: blur(${blur}px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         /* 图片占位底（var(--ui-black-transparent)），跟着降一档 */
         .sa-screenshot-preview-image {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
 
 /* [S-3] 查找条下拉（native find-bar）
@@ -882,15 +851,15 @@ const TARGETS = [
        按既有判定边界归为控件保留；但它在玻璃下拉的同一条轴上会形成"玻璃条 + 实底输入框"的断层，
        这里只统一普通态与 hover，focus 态一并纳入（否则点一下就闪回纯黑）。 */
         .sa-find-dropdown {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         .sa-find-input,
         .sa-find-input:focus {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* 下拉里的整行 hover/selected 底板。
            源样式在 Dropdown.js 生成的行上：<li class="sa-block-color sa-block-color-xxx">
@@ -908,14 +877,14 @@ const TARGETS = [
        style.css:50 铺 var(--ui-white)（深色 #111111），userscript.js:538 document.body.appendChild(menu)
        → 无窗祖先。position:fixed 跟随鼠标弹出，底下是角色列表 / 编辑器实色 → 自承载玻璃。 */
         .sa-folder-context-menu {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         .sa-context-menu-item:hover {
-            background-color: ${stateTint(0.09)} !important;
-            background: ${stateTint(0.09)} !important;
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
         /* .sa-context-menu-danger 与其 hover 的红色保留（危险语义）。
            .sa-toolbar-button（角色列表工具条按钮）与 .sa-file-list-toolbar（角色列表内条）
@@ -925,8 +894,8 @@ const TARGETS = [
 /* [S-5] 角色列表工具条（sprite-folders 注入到角色选择器内）
        .sa-file-list-toolbar style.css:13 铺 var(--ui-secondary)。 */
         .sa-file-list-toolbar {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
         }
 
 /* [S-6] 画板工具（paint-snap / project-size-display）自建的 body 级面板
@@ -934,14 +903,14 @@ const TARGETS = [
        .sa-project-size-display 铺 var(--ui-secondary)，挂在 spriteSelector 上是整行条。
        两者都浮在画板 / 角色列表实色之上 → 自承载玻璃。 */
         .sa-paint-snap-settings {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         .sa-project-size-display {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+            background-color: var(--fg-glass) !important;
+            background: var(--fg-glass) !important;
         }
         /* .sa-project-size-blocks / .sa-project-size-project 只有文字色，无需处理。
            .sa-paint-snap-button[data-enabled="true"] 的 $looks-secondary 是"开关开启"语义色，保留。 */
@@ -989,8 +958,8 @@ const TARGETS = [
         }
         [class*="sprite-selector-item_is-selected"],
         [class*="sprite-selector-item_sprite-selector-item"]:hover {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* 角色列表底部的"添加角色"大按钮：按钮控件，铺 $looks-secondary —
            按 [U] 组统一处理（见下）。 */
@@ -1055,53 +1024,53 @@ const TARGETS = [
        ⚠ .status-bar 是**整条**通栏元素（不是按钮），一并纳入。
        ⚠ gui .palette-footer（"添加扩展"方块按钮）**不在**此列 —— 用户要求它保持原样，
          见 [U-1b] 的豁免说明。 */
-        ${inside} [class*="prompt_ok-button"],
-        ${inside} [class*="record-modal_ok-button"],
-        ${inside} [class*="slider-prompt_ok-button"],
-        ${inside} [class*="username-modal_ok-button"],
-        ${inside} [class*="collaboration-modal_primaryButton"],
-        ${inside} [class*="collaboration-modal_approveButton"],
-        ${inside} [class*="git-modal_primaryButton"],
-        ${inside} [class*="project-theme-modal_primaryButton"],
-        ${inside} [class*="restore-point-modal_primary-button"],
-        ${inside} [class*="restore-point-modal_confirm-ok-button"],
-        ${inside} [class*="extension-manager-modal_confirm-ok-button"],
-        ${inside} [class*="custom-procedures_ok-button"],
-        ${inside} [class*="custom-extension-modal_load-button"],
-        ${inside} [class*="settings-modal_button"],
-        ${inside} [class*="invalid-project-modal_button"],
-        ${inside} [class*="unknown-platform-modal_button"],
-        ${inside} [class*="fonts-modal_button"],
-        ${inside} [class*="rotur-login-modal_primary"],
-        ${inside} [class*="rotur-login-modal_feature-icon"],
-        ${inside} [class*="webgl-modal_button"],
-        ${inside} [class*="telemetry-modal_button"],
-        ${inside} [class*="question_question-submit-button"],
-        ${inside} [class*="media-recorder_primary-button"],
-        ${inside} [class*="settings-menu_reset-button"],
-        ${inside} [class*="settings-menu_add-button"],
-        ${inside} [class*="settings-menu_customThemeDialogButton"],
-        ${inside} [class*="settings-menu_gcBtnPrimary"],
-        ${inside} [class*="settings-menu_wallpaper-button"],
-        ${inside} [class*="connection-modal_connection-button"],
-        ${inside} [class*="connection-modal_peripheral-tile"] button,
-        ${inside} [class*="asset-panel_add-button"],
-        ${inside} [class*="backpack_more"],
-        ${inside} [class*="close-button_small"],
-        ${inside} [class*="delete-button_delete-button-visible"],
-        ${inside} [class*="sprite-selector-item_sprite-info"],
-        ${inside} [class*="sound-editor_round-button"],
-        ${inside} [class*="context-menu_menu-item"]:hover,
-        ${inside} [class*="git-modal_chipActive"],
-        ${inside} [class*="fractch-workspace_file"][class*="fractch-workspace_selected"],
-        ${inside} [class*="fractch-workspace_action-button"][class*="fractch-workspace_toggled"],
-        ${inside} [class*="fractch-workspace_status-bar"],
-        ${inside} [class*="cloud-variable-badge_server"],
-        ${inside} [class*="cloud-variable-badge_selected"] {
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            background: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="prompt_ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="record-modal_ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="slider-prompt_ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="username-modal_ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_primaryButton"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_approveButton"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="git-modal_primaryButton"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="project-theme-modal_primaryButton"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="restore-point-modal_primary-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="restore-point-modal_confirm-ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="extension-manager-modal_confirm-ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="custom-procedures_ok-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="custom-extension-modal_load-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="invalid-project-modal_button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="unknown-platform-modal_button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="fonts-modal_button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="rotur-login-modal_primary"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="rotur-login-modal_feature-icon"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="webgl-modal_button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="telemetry-modal_button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="question_question-submit-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="media-recorder_primary-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_reset-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_add-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_customThemeDialogButton"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_gcBtnPrimary"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_wallpaper-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="connection-modal_connection-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="connection-modal_peripheral-tile"] button,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="asset-panel_add-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="backpack_more"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="close-button_small"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="delete-button_delete-button-visible"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="sprite-selector-item_sprite-info"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="sound-editor_round-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="context-menu_menu-item"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="git-modal_chipActive"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="fractch-workspace_file"][class*="fractch-workspace_selected"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="fractch-workspace_action-button"][class*="fractch-workspace_toggled"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="fractch-workspace_status-bar"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="cloud-variable-badge_server"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="cloud-variable-badge_selected"] {
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         /* ⚠ 上面两处**必须**用双属性选择器，单属性会过度命中：
              · fractch-workspace：.file 是**每一行**文件（不只选中行），
@@ -1113,7 +1082,7 @@ const TARGETS = [
                改为双属性 [class*="stage-selector"][class*="is-selected"] 后
                再限定在 .header 上（见 [U-1b]）。 */
 
-/* [U-1b] 舞台区 / 编辑器本体里的"选中态整条" —— 它们不在 modal 内，不能带 ${inside} 前缀，
+/* [U-1b] 舞台区 / 编辑器本体里的"选中态整条" —— 它们不在 modal 内，不能带 [class*="modal-content"], .modal-window-content, .addon-window-content 前缀，
        否则永远匹配不到。这些元素铺的正是 $looks-secondary 整条色带，
        在玻璃主题下会是最显眼的实色矩形之一。
 
@@ -1125,38 +1094,38 @@ const TARGETS = [
        用户明确要求这颗按钮不受毛玻璃主题影响（保持 Scratch 原始的实色 $looks-secondary）。
        所以**不要**再把它加回下面这组选择器。 */
         [class*="stage-selector"][class*="is-selected"][class*="stage-selector_header"] {
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            background: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         /* [U-1h] 同一批按钮的 hover —— 提高混合比例，不换 token */
-        ${inside} [class*="prompt_ok-button"]:hover,
-        ${inside} [class*="record-modal_ok-button"]:hover,
-        ${inside} [class*="slider-prompt_ok-button"]:hover,
-        ${inside} [class*="username-modal_ok-button"]:hover,
-        ${inside} [class*="collaboration-modal_primaryButton"]:hover,
-        ${inside} [class*="collaboration-modal_approveButton"]:hover,
-        ${inside} [class*="git-modal_primaryButton"]:hover,
-        ${inside} [class*="project-theme-modal_primaryButton"]:hover,
-        ${inside} [class*="restore-point-modal_primary-button"]:hover,
-        ${inside} [class*="restore-point-modal_confirm-ok-button"]:hover,
-        ${inside} [class*="extension-manager-modal_confirm-ok-button"]:hover,
-        ${inside} [class*="custom-procedures_ok-button"]:hover,
-        ${inside} [class*="custom-extension-modal_load-button"]:hover,
-        ${inside} [class*="settings-modal_button"]:hover,
-        ${inside} [class*="invalid-project-modal_button"]:hover,
-        ${inside} [class*="unknown-platform-modal_button"]:hover,
-        ${inside} [class*="fonts-modal_button"]:hover,
-        ${inside} [class*="rotur-login-modal_primary"]:hover,
-        ${inside} [class*="connection-modal_connection-button"]:hover,
-        ${inside} [class*="asset-panel_add-button"]:hover,
-        ${inside} [class*="settings-menu_reset-button"]:hover,
-        ${inside} [class*="settings-menu_add-button"]:hover,
-        ${inside} [class*="settings-menu_customThemeDialogButton"]:hover,
-        ${inside} [class*="settings-menu_gcBtnPrimary"]:hover {
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
-            background: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="prompt_ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="record-modal_ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="slider-prompt_ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="username-modal_ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_primaryButton"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_approveButton"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="git-modal_primaryButton"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="project-theme-modal_primaryButton"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="restore-point-modal_primary-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="restore-point-modal_confirm-ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="extension-manager-modal_confirm-ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="custom-procedures_ok-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="custom-extension-modal_load-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-modal_button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="invalid-project-modal_button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="unknown-platform-modal_button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="fonts-modal_button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="rotur-login-modal_primary"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="connection-modal_connection-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="asset-panel_add-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_reset-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_add-button"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_customThemeDialogButton"]:hover,
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="settings-menu_gcBtnPrimary"]:hover {
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
         }
 
 /* [U-2] 另一族品牌色：$motion-primary / $pen-primary / $data-primary / $control-primary
@@ -1164,47 +1133,47 @@ const TARGETS = [
         按用户口径"窗口类的主题色"一并玻璃化，各自保留自己的色相。 */
 
 /* [U-2a] $motion-primary 系 */
-        ${inside} [class*="assets-modal_folder-button"],
-        ${inside} [class*="project-metadata-modal_bar-fill"],
-        ${inside} [class*="collaboration-modal_hostBadge"] {
-            background-color: ${brandGlass('--motion-primary', '#4c97ff', brandA)} !important;
-            background: ${brandGlass('--motion-primary', '#4c97ff', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="assets-modal_folder-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="project-metadata-modal_bar-fill"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="collaboration-modal_hostBadge"] {
+            background-color: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--motion-primary, #4c97ff) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
 
 /* [U-2b] $data-primary 系（"即将推出"徽标、分享按钮、标签激活态） */
-        ${inside} [class*="coming-soon_coming-soon"],
-        ${inside} [class*="share-button_share-button"],
-        ${inside} [class*="tag-button_active"],
-        ${inside} [class*="library-item_coming-soon-text"],
-        ${inside} [class*="action-menu_coming-soon-tooltip"] {
-            background-color: ${brandGlass('--data-primary', '#ff8c1a', brandA)} !important;
-            background: ${brandGlass('--data-primary', '#ff8c1a', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="coming-soon_coming-soon"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="share-button_share-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="tag-button_active"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="library-item_coming-soon-text"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="action-menu_coming-soon-tooltip"] {
+            background-color: color-mix(in srgb, var(--data-primary, #ff8c1a) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--data-primary, #ff8c1a) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
 
 /* [U-2c] $pen-primary 系（绿色：混音、扩展库图标底、菜单栏 remix） */
-        ${inside} [class*="remix-button"],
-        ${inside} [class*="extension-library_card-inset-icon"],
-        ${inside} [class*="library-item_library-item-inset-image-container"] {
-            background-color: ${brandGlass('--pen-primary', '#0fbd8c', brandA)} !important;
-            background: ${brandGlass('--pen-primary', '#0fbd8c', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="remix-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="extension-library_card-inset-icon"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="library-item_library-item-inset-image-container"] {
+            background-color: color-mix(in srgb, var(--pen-primary, #0fbd8c) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--pen-primary, #0fbd8c) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
 
 /* [U-2d] $extensions-primary 系（绿色：卡片导航钮、提示气泡） */
-        ${inside} [class*="card_left-button"],
-        ${inside} [class*="card_right-button"],
-        ${inside} [class*="card_header-buttons"],
-        ${inside} [class*="action-menu_tooltip"],
-        ${inside} [class*="project-input_tooltip"] {
-            background-color: ${brandGlass('--extensions-primary', '#0fbd8c', brandA)} !important;
-            background: ${brandGlass('--extensions-primary', '#0fbd8c', brandA)} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="card_left-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="card_right-button"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="card_header-buttons"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="action-menu_tooltip"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="project-input_tooltip"] {
+            background-color: color-mix(in srgb, var(--extensions-primary, #0fbd8c) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--extensions-primary, #0fbd8c) var(--fg-brand-pct), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
 
 /* [U-2e] 独立装饰色块（browser-modal 空状态插画区已在 [E] 组处理，这里是同族的
@@ -1212,13 +1181,13 @@ const TARGETS = [
        —— 后者已在 [U-1] 覆盖，此处只补 illustration）。
        这两块与 [E] 的 browser-modal_illustration 同类：大面积品牌色底板，上面压插画。
        用同色系淡玻璃（cardGlass 的品牌色版本）替代纯色，保持承载感。 */
-        ${inside} [class*="telemetry-modal_illustration"],
-        ${inside} [class*="webgl-modal_illustration"],
-        ${inside} [class*="browser-modal_desktop-settings-inner"] {
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', Math.round(alpha * 40))} !important;
-            background: ${brandGlass('--looks-secondary', '#4c97ff', Math.round(alpha * 40))} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="telemetry-modal_illustration"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="webgl-modal_illustration"],
+        [class*="modal-content"], .modal-window-content, .addon-window-content [class*="browser-modal_desktop-settings-inner"] {
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-soft), transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-soft), transparent) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
 
 /* [U-3] 插件窗口里的品牌色（与 [J] 组同源，覆盖面扩到品牌色）
@@ -1260,7 +1229,7 @@ const TARGETS = [
          resize-selected-item   .sa-resize-settings-input { background: var(--ui-modal-background) }
        这些壳子的类名不含任何关键字，且子 input 已被 [H] 铺成玻璃，
        于是形成"玻璃框里套一个黑框"。壳子改透明，只留 [H] 那一层底板。
-       ⚠ 同样把三挂载点分别写全，不依赖 ${inside} 的列表展开写法。 */
+       ⚠ 同样把三挂载点分别写全，不依赖 [class*="modal-content"], .modal-window-content, .addon-window-content 的列表展开写法。 */
         [class*="modal-content"] [class*="input-with-unit"],
         .modal-window-content [class*="input-with-unit"],
         .addon-window-content [class*="input-with-unit"],
@@ -1281,7 +1250,7 @@ const TARGETS = [
         }
         /* [V-A'] :has() 泛化 —— 任何"直接后代含 input/select/textarea"且
            自己铺了底的窗口内元素（已知类名之外的新增元素靠这条兜住）。
-           本模块的 ${inside} 前缀是"逗号列表"，拼在后代选择器上时只会作用于
+           本模块的 [class*="modal-content"], .modal-window-content, .addon-window-content 前缀是"逗号列表"，拼在后代选择器上时只会作用于
            最后一个分支（历史写法，全模块一致）。所以这里把 :has() 单独写成
            三段，保证三个挂载点都真正被限定为"后代"，不依赖该写法。
            ⚠ 只匹配"直接子级"是 input/select/textarea，不递归；也**不含**
@@ -1324,21 +1293,21 @@ const TARGETS = [
          $ui-secondary-hover），不是品牌色。按 [U-1h] 的既有教训，
          hover 不能换 token 否则会"玻璃 → 实心"跳变；这里统一
          普通态 cardGlass、hover 提一档用 glass。 */
-        ${insideDescendant}[class*="secondary-button"],
-        ${insideDescendant}[class*="secondaryButton"],
-        ${insideDescendant}[class*="cancel-button"],
-        ${insideDescendant}[class*="cancelButton"],
-        ${insideDescendant}[class*="confirm-cancel-button"] {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="secondary-button"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="secondaryButton"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="cancel-button"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="cancelButton"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="confirm-cancel-button"] {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
-        ${insideDescendant}[class*="secondary-button"]:hover,
-        ${insideDescendant}[class*="secondaryButton"]:hover,
-        ${insideDescendant}[class*="cancel-button"]:hover,
-        ${insideDescendant}[class*="cancelButton"]:hover,
-        ${insideDescendant}[class*="confirm-cancel-button"]:hover {
-            background-color: ${stateTint(0.13)} !important;
-            background: ${stateTint(0.13)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="secondary-button"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="secondaryButton"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="cancel-button"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="cancelButton"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="confirm-cancel-button"]:hover {
+            background-color: var(--fg-active) !important;
+            background: var(--fg-active) !important;
         }
 
 /* [V-C] 模式 C：中性浅底小单元 —— chip / row / box / tab 类
@@ -1353,32 +1322,32 @@ const TARGETS = [
          sprite-folders .sa-toolbar-button / .sa-file-icon
        注意 keycap 是"按键帽"—— 它是**视觉隐喻**（表示键盘按键），
        透明化后仍靠 border 保持可辨，比实色更贴合玻璃主题。 */
-        ${insideDescendant}[class*="git-modal_remoteItem"],
-        ${insideDescendant}[class*="git-modal_remoteRow"],
-        ${insideDescendant}[class*="git-modal_chip"],
-        ${insideDescendant}[class*="git-modal_commitBox"],
-        ${insideDescendant}[class*="git-modal_readmeBox"],
-        ${insideDescendant}[class*="git-modal_commitTypeSelect"],
-        ${insideDescendant}[class*="git-modal_conflictRow"],
-        ${insideDescendant}[class*="shortcut-manager_keycap"],
-        ${insideDescendant}[class*="shortcut-manager_hintKey"],
-        ${insideDescendant}[class*="shortcut-manager_toolbar"],
-        ${insideDescendant}[class*="restore-point-modal_interval-selector"],
-        ${insideDescendant}[class*="project-analysis_score-card"],
-        ${insideDescendant}[class*="project-analysis_metric-tile"],
-        ${insideDescendant}[class*="project-analysis_recommendation"],
-        ${insideDescendant}[class*="sprite-folders_sa-toolbar-button"],
-        ${insideDescendant}[class*="sprite-folders_sa-file-icon"] {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_remoteItem"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_remoteRow"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_chip"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_commitBox"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_readmeBox"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_commitTypeSelect"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_conflictRow"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="shortcut-manager_keycap"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="shortcut-manager_hintKey"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="shortcut-manager_toolbar"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="restore-point-modal_interval-selector"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-analysis_score-card"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-analysis_metric-tile"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="project-analysis_recommendation"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="sprite-folders_sa-toolbar-button"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="sprite-folders_sa-file-icon"] {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* [V-C] 的 hover / 选中态：不换 token，改用状态叠加色（同色玻璃在这里看不见） */
-        ${insideDescendant}[class*="git-modal_remoteItem"]:hover,
-        ${insideDescendant}[class*="git-modal_remoteRow"]:hover,
-        ${insideDescendant}[class*="git-modal_chip"]:hover,
-        ${insideDescendant}[class*="sprite-folders_sa-toolbar-button"]:hover {
-            background-color: ${stateTint(0.12)} !important;
-            background: ${stateTint(0.12)} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_remoteItem"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_remoteRow"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="git-modal_chip"]:hover,
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="sprite-folders_sa-toolbar-button"]:hover {
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
         /* git-modal 的 .chip 选中态源样式铺 $looks-secondary（已由 [U-1] 的
            git-modal_chipActive 覆盖），这里只需保证非选中态是玻璃，不重复。
@@ -1414,8 +1383,8 @@ const TARGETS = [
         /* [X-2a] 选中的 tab —— 源样式铺 --ui-secondary（中性面），
            用 stateTint(0.14) 比同色玻璃更清楚："当前在哪一页"必须一眼能看出来。 */
         .sa-debugger-window .mw-debugger-tab-active {
-            background-color: ${stateTint(0.14)} !important;
-            background: ${stateTint(0.14)} !important;
+            background-color: var(--fg-active) !important;
+            background: var(--fg-active) !important;
         }
         /* [X-2b] 中性 chrome / 内容单元：它们是控件或行，不是区域板，
            给一层淡玻璃保留单元可辨性（档位同 [V-B] / [V-C]） */
@@ -1425,8 +1394,8 @@ const TARGETS = [
         .sa-debugger-window .sa-debugger-thread-id,
         .sa-debugger-window .sa-memory-variable-row,
         .sa-debugger-window .sa-memory-variables-empty {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
         /* [X-3] hover：不换 token，用状态叠加色（同色玻璃在这里看不见）。
            两点收窄：
@@ -1435,26 +1404,26 @@ const TARGETS = [
                特异性相同，本来就把 hover 盖掉了；不排除的话我们这条会把黄/红底冲掉。 */
         .sa-debugger-window .mw-debugger-tab:not(.mw-debugger-tab-active):hover,
         .sa-debugger-window .sa-debugger-log:not([data-type="warn"]):not([data-type="error"]):hover {
-            background-color: ${stateTint(0.09)} !important;
-            background: ${stateTint(0.09)} !important;
+            background-color: var(--fg-hover) !important;
+            background: var(--fg-hover) !important;
         }
         /* [X-4] 品牌色：① "恢复运行"按钮（暂停时才出现，源色 $pen-primary）
                         ② 日志行的跳转链接 hover（源色 $looks-secondary + 白字）
            ① 必须写成双类 .mw-debugger-toolbar-btn.mw-debugger-resume：
            它同时带 mw-debugger-toolbar-btn，与 [X-2b] 同特异性，靠双类抬高才能稳赢。 */
         .sa-debugger-window .mw-debugger-toolbar-btn.mw-debugger-resume {
-            background-color: ${brandGlass('--pen-primary', '#0fbd8c', brandA)} !important;
-            background: ${brandGlass('--pen-primary', '#0fbd8c', brandA)} !important;
+            background-color: color-mix(in srgb, var(--pen-primary, #0fbd8c) var(--fg-brand-pct), transparent) !important;
+            background: color-mix(in srgb, var(--pen-primary, #0fbd8c) var(--fg-brand-pct), transparent) !important;
             border-color: transparent !important;
             color: white !important;
         }
         .sa-debugger-window .mw-debugger-toolbar-btn.mw-debugger-resume:hover {
-            background-color: ${brandGlass('--pen-primary', '#0fbd8c', brandAHover)} !important;
-            background: ${brandGlass('--pen-primary', '#0fbd8c', brandAHover)} !important;
+            background-color: color-mix(in srgb, var(--pen-primary, #0fbd8c) var(--fg-brand-pct-hover), transparent) !important;
+            background: color-mix(in srgb, var(--pen-primary, #0fbd8c) var(--fg-brand-pct-hover), transparent) !important;
         }
         .sa-debugger-window .sa-debugger-log-link:hover {
-            background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
-            background: ${brandGlass('--looks-secondary', '#4c97ff', brandAHover)} !important;
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) var(--fg-brand-pct-hover), transparent) !important;
             color: white !important;
         }
         /* ---- [X-5] 同型逃逸：另外两个"中性实色、类名不含任何关键字"的窗口成员 ----
@@ -1467,13 +1436,13 @@ const TARGETS = [
              record-modal（录音窗口） .meter-container / .waveform-container → 仪表底板
              mw-git-diff-viewer（Git 窗口里的差异查看器）
                                       .viewer（列表根）/ .fileHeader（文件行头） */
-        ${insideDescendant}[class*="record-modal_meter-container"],
-        ${insideDescendant}[class*="record-modal_waveform-container"],
-        ${insideDescendant}[class*="diff-viewer_fileHeader"] {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="record-modal_meter-container"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="record-modal_waveform-container"],
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="diff-viewer_fileHeader"] {
+            background-color: var(--fg-glass-card) !important;
+            background: var(--fg-glass-card) !important;
         }
-        ${insideDescendant}[class*="diff-viewer_viewer"] {
+        :is([class*="modal-content"], .modal-window-content, .addon-window-content) [class*="diff-viewer_viewer"] {
             background-color: transparent !important;
             background: transparent !important;
         }
@@ -1493,107 +1462,53 @@ const TARGETS = [
        backdrop-filter 放在 svg 上是有效的：它是一个独立盒子，不是 SVG 内部元素，
        所以能吃到下面画布/壁纸的模糊 —— 参数与 [S] 组"自承载玻璃浮层"保持一致。 */
         svg.blocklyFlyout {
-            background-color: ${glass} !important;
-            backdrop-filter: ${glassBlur} !important;
-            -webkit-backdrop-filter: ${glassBlur} !important;
+            background-color: var(--fg-glass) !important;
+            backdrop-filter: var(--fg-filter) !important;
+            -webkit-backdrop-filter: var(--fg-filter) !important;
         }
         svg.blocklyFlyout > path.blocklyFlyoutBackground,
         svg.blocklyFlyout > rect.blocklyFlyoutBackground {
             fill: transparent !important;
-        }`;
-        }
-    },
-    // 弹窗通知 — CSS Module 类名: alert_alert_xxxxx
-    // 注意: alert.css 中 .alert.warn 使用 background 简写(#FFF0DF)，需用 background 简写+!important 强制覆盖
-    {
-        id: 'alert',
-        labelId: 'bl.frostedGlass.target.alert',
-        defaultMessage: 'Alert',
-        css: (blur, alpha, r, g, b) => `
+        }`,
+    "alert": 
+`
 [class*="alert_alert_"] {
-    background: rgba(${r}, ${g}, ${b}, ${alpha}) !important;
-    background-color: rgba(${r}, ${g}, ${b}, ${alpha}) !important;
-    backdrop-filter: blur(${blur}px) saturate(150%) !important;
-    -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+    background: var(--fg-glass) !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.15) !important;
-}`
-    },
-    // 右下角通知弹窗 — notification-system.jsx 使用 className="mw-glass-notification" + inline style
-    // inline style 的 background: var(--ui-modal-background, #ffffff) 需用 !important 覆盖
-    {
-        id: 'notification',
-        labelId: 'bl.frostedGlass.target.notification',
-        defaultMessage: 'Notification',
-        css: (blur, alpha, r, g, b) => `
+}`,
+    "notification": 
+`
 .mw-glass-notification {
-    background: rgba(${r}, ${g}, ${b}, ${alpha}) !important;
-    background-color: rgba(${r}, ${g}, ${b}, ${alpha}) !important;
-    backdrop-filter: blur(${blur}px) saturate(150%) !important;
-    -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+    background: var(--fg-glass) !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.15) !important;
-}`
-    },
-    // Toast 通知 — CSS Module 类名: toast_notification_toast_xxxxx
-    // toast-notification.css 中 .toast.success/.error/.info/.warning 使用 background-color 设置颜色，
-    // 需用 background-color + !important 强制覆盖
-    {
-        id: 'toast',
-        labelId: 'bl.frostedGlass.target.toast',
-        defaultMessage: 'Toast',
-        css: (blur, alpha, r, g, b) => `
+}`,
+    "toast": 
+`
 [class*="toast-notification_toast"] {
-    background-color: rgba(${r}, ${g}, ${b}, ${alpha}) !important;
-    backdrop-filter: blur(${blur}px) saturate(150%) !important;
-    -webkit-backdrop-filter: blur(${blur}px) saturate(150%) !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.15) !important;
-}`
-    },
-    // 顶部菜单栏下拉菜单 — CSS Module 类名: menu-bar_menu-bar-menu_xxxxx
-    // 内部 .menu 来自 menu.css，CSS Module 类名: menu_menu_xxxxx
-    // 毛玻璃背景直接加在 <ul> 上，同时增强菜单项 hover 背景的可见性
-    // 因为毛玻璃背景降低了 <ul> 的不透明度，原始的 .menu-item:hover
-    // background-color: rgba(255,255,255,0.15) 对比度太低几乎看不见
-    {
-        id: 'menu-bar-menu',
-        labelId: 'bl.frostedGlass.target.menuBarMenu',
-        defaultMessage: 'Menu Bar Dropdown',
-        css: (blur, alpha, r, g, b) => {
-            // 暗色模式(r=0,0,0)下 hover 用白色，亮色模式(r=255,255,255)下 hover 用黑色
-            const isDark = r === 0 && g === 0 && b === 0;
-            const hoverR = isDark ? 255 : 0;
-            const hoverG = isDark ? 255 : 0;
-            const hoverB = isDark ? 255 : 0;
-            // 使用更高的不透明度(0.25)确保 hover 效果在毛玻璃背景下可见
-            const hoverA = 0.25;
-            return `
+}`,
+    "menu-bar-menu": 
+`
 [class*="menu-bar-menu"] [class*="menu_menu"] {
-    background: rgba(${r}, ${g}, ${b}, ${alpha});
-    background-color: rgba(${r}, ${g}, ${b}, ${alpha});
+    background: var(--fg-glass);
+    background-color: var(--fg-glass);
 }
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"]:hover,
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"].active,
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"].expanded {
-    background-color: rgba(${hoverR}, ${hoverG}, ${hoverB}, ${hoverA});
-}`;
-        }
-    },
-    // 右键菜单 — 全站 4 套实现，与 src/lib/bl-menu-animation.css 的动画选择器一一对应：
-    //   1) react-contextmenu —— 角色 / 造型 / 声音 / 背包积木 / 变量监视器
-    //   2) scratch-blocks 原生菜单 —— 积木 / 工作区 / 积木区
-    //   3) sprite-folders 扩展 —— 角色文件夹
-    //   4) mw-fractch-workspace —— .fractch 文件树
-    // 菜单面积小、又常压在积木/舞台这类高饱和画面上，所以用满 alpha
-    // （不像窗口主体那样打 0.55 折），否则会糊成一片灰、边界也看不出来。
-    // 只加 backdrop-filter + 透明底色，不动 color / border / box-shadow：
-    // 文字与描边来自同一套主题 token，跟着主题走即可。
-    {
-        id: 'context-menu',
-        labelId: 'bl.frostedGlass.target.contextMenu',
-        defaultMessage: 'Context Menu',
-        css: (blur, alpha, r, g, b) => {
-            const glass = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-            const glassBlur = `blur(${blur}px) saturate(150%)`;
-            return `
+    background-color: var(--fg-hover-strong);
+}`,
+    "context-menu": 
+`
 /* 1) react-contextmenu
    实色底来自 context-menu.css 的 .context-menu{background-color:var(--ui-white)}
    （CSS Module，类名被哈希）。库在 ContextMenu.js 里用
@@ -1609,10 +1524,10 @@ const TARGETS = [
    （隐藏态同时被 context-menu.css 的 display:none 移出渲染树，这里再加一道，
    防止以后有人改掉那条规则又把问题带回来。） */
 nav.react-contextmenu.react-contextmenu--visible {
-    background: ${glass} !important;
-    background-color: ${glass} !important;
-    backdrop-filter: ${glassBlur} !important;
-    -webkit-backdrop-filter: ${glassBlur} !important;
+    background: var(--fg-glass) !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
 }
 
 /* 2) scratch-blocks 原生菜单
@@ -1622,17 +1537,17 @@ nav.react-contextmenu.react-contextmenu--visible {
    叠加 .blocklyContextMenu 是为了精确限定"右键菜单"：字段下拉用 .blocklyDropDownDiv，
    不在此列，它的白底/描边逻辑保持原样。 */
 .blocklyWidgetDiv .goog-menu.blocklyContextMenu {
-    background: ${glass} !important;
-    backdrop-filter: ${glassBlur} !important;
-    -webkit-backdrop-filter: ${glassBlur} !important;
+    background: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
 }
 
 /* 3) sprite-folders 扩展的角色文件夹菜单 */
 .sa-folder-context-menu {
-    background: ${glass} !important;
-    background-color: ${glass} !important;
-    backdrop-filter: ${glassBlur} !important;
-    -webkit-backdrop-filter: ${glassBlur} !important;
+    background: var(--fg-glass) !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
 }
 
 /* 4) .fractch 文件树菜单
@@ -1640,29 +1555,13 @@ nav.react-contextmenu.react-contextmenu--visible {
    contextMenuBackground 内联成该变量，同样是字面量，只能整块覆盖。
    类名来自 CSS Module（fractch-workspace_context-menu_xxxxx），用属性子串匹配。 */
 [class*="fractch-workspace_context-menu"] {
-    background: ${glass} !important;
-    background-color: ${glass} !important;
-    backdrop-filter: ${glassBlur} !important;
-    -webkit-backdrop-filter: ${glassBlur} !important;
-}`;
-        }
-    },
-    // 画板浮层面板 — 三类同源浮层：
-    //   1. scratch-paint 的 react-popover：颜色选择器、字体 / 模式下拉、角色方向选择器
-    //      （portal 到 <body> 下，类名是全局的 .Popover / .Popover-body / .Popover-tipShape）
-    //   2. Onion Skin 洋葱皮设置面板（插件 onion-skinning）→ .sa-onion-settings
-    //   3. Resize 大小 / 位置面板（插件 resize-selected-item）→ .sa-resize-settings
-    // 后两类都是"浮在画布上方、底部带一个小箭头"的面板，视觉语言与 popover 一致，
-    // 所以合并到同一个 target 里，箭头跟着面板一起玻璃化
-    // （只做面板不做箭头会出现"玻璃面板 + 实心箭头"的断层）。
-    {
-        id: 'popover',
-        labelId: 'bl.frostedGlass.target.popover',
-        defaultMessage: 'Popover / Panels',
-        css: (blur, alpha, r, g, b) => {
-            const glass = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-            const glassBlur = `blur(${blur}px) saturate(150%)`;
-            return `
+    background: var(--fg-glass) !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
+}`,
+    "popover": 
+`
 /* react-popover 浮层主体。主题层 lib/themes/global-styles.css 用
    [.Popover-body { background: var(--popover-background) !important }]
    铺了不透明底色（特异性 (0,1,0)），却同时写着"some of these are duplicated over
@@ -1671,13 +1570,13 @@ nav.react-contextmenu.react-contextmenu--visible {
    body 前缀同时也天然限定了作用域：react-popover 是 portal 到 <body> 下的。
    不覆盖 box-shadow，保留浮层原有的投影 —— 它贴在画布 / 检查器上时靠投影分层次。 */
 body .Popover-body {
-    background-color: ${glass} !important;
-    backdrop-filter: ${glassBlur} !important;
-    -webkit-backdrop-filter: ${glassBlur} !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
 }
 /* 浮层箭头（主题层同样以 (0,1,0) + !important 设成实心底色） */
 body .Popover-tipShape {
-    fill: ${glass} !important;
+    fill: var(--fg-glass) !important;
 }
 
 /* 画板插件的设置面板 —— 两者都是 .sa-xxx-settings + .sa-xxx-settings-polygon 结构，
@@ -1687,18 +1586,16 @@ body .Popover-tipShape {
    onion 面板的加减按钮本来就只有描边没有底色，玻璃底能直接透出来。 */
 .sa-onion-settings,
 .sa-resize-settings {
-    background-color: ${glass} !important;
-    backdrop-filter: ${glassBlur} !important;
-    -webkit-backdrop-filter: ${glassBlur} !important;
+    background-color: var(--fg-glass) !important;
+    backdrop-filter: var(--fg-filter) !important;
+    -webkit-backdrop-filter: var(--fg-filter) !important;
 }
 /* 面板下方指向按钮的小箭头 */
 .sa-onion-settings-polygon,
 .sa-resize-settings-polygon {
-    fill: ${glass} !important;
-}`;
-        }
-    }
-];
+    fill: var(--fg-glass) !important;
+}`,
+};
 
 const safeGetItem = key => {
     try {
@@ -1708,11 +1605,19 @@ const safeGetItem = key => {
     }
 };
 
+// 上一次写入的样式表内容（避免重复写入触发无谓的样式重算）
+let _lastApplied = null;
+
+/** 读取设置（兼容 legacy JSON：缺省字段自动补全为默认值） */
 const getFrostedGlassSettings = () => {
     try {
         const stored = safeGetItem(STORAGE_KEY);
         if (stored) {
-            return JSON.parse(stored);
+            const parsed = JSON.parse(stored);
+            return {
+                ...DEFAULT_SETTINGS,
+                ...parsed
+            };
         }
     } catch (err) {
         // ignore
@@ -1728,180 +1633,165 @@ const setFrostedGlassSettings = settings => {
     }
 };
 
-const targetStyleId = targetId => `${STYLE_ID_PREFIX}${targetId}`;
-
-const applyFrostedGlassForTarget = (targetId, blurRadius, opacity, r, g, b) => {
-    const target = TARGETS.find(t => t.id === targetId);
-    if (!target) return;
-    const css = target.css(blurRadius, opacity, r, g, b);
-    const existing = document.getElementById(targetStyleId(targetId));
-    if (existing) {
-        // 避免无意义的更新：只有当 CSS 内容真正变化时才更新
-        if (existing.textContent !== css) {
-            existing.textContent = css;
-        }
-    } else {
-        const style = document.createElement('style');
-        style.id = targetStyleId(targetId);
-        style.textContent = css;
-        document.head.appendChild(style);
-    }
-};
-
-const removeFrostedGlassForTarget = targetId => {
-    const existing = document.getElementById(targetStyleId(targetId));
-    if (existing) {
-        existing.remove();
-    }
-};
-
 /**
- * 检测当前主题是否为深色模式。
- * 读取 document 根元素上的 --color-scheme CSS 变量（由主题系统设置）。
- * @returns {boolean} 深色主题返回 true
- */
-const isDarkMode = () => {
-    const scheme = getComputedStyle(document.documentElement)
-        .getPropertyValue('--color-scheme')
-        .trim()
-        .toLowerCase();
-    return scheme === 'dark';
-};
-
-/**
- * 获取当前主题下毛玻璃背景的 RGB 值。
- * 深色模式使用黑色底色，亮色模式使用白色底色。
- * 结果缓存，避免频繁调用 getComputedStyle()。
- * @returns {{r: number, g: number, b: number}} 主题底色 RGB
+ * 读取当前主题底色（深色 → 纯黑，浅色 → 纯白）。
+ * 每次直接读取（仅在设置变更 / 主题切换时调用），不做缓存——
+ * legacy 版的缓存 + MutationObserver 清缓存链路一并移除。
  */
 const getThemeRGB = () => {
-    if (_cachedRGB) return _cachedRGB;
-    if (isDarkMode()) {
-        _cachedRGB = {r: 0, g: 0, b: 0};
-    } else {
-        _cachedRGB = {r: 255, g: 255, b: 255};
+    try {
+        const scheme = getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-scheme')
+            .trim()
+            .toLowerCase();
+        return scheme === 'dark' ? {r: 0, g: 0, b: 0} : {r: 255, g: 255, b: 255};
+    } catch (e) {
+        return {r: 255, g: 255, b: 255};
     }
-    return _cachedRGB;
+};
+
+/** 生成 :root 变量块（所有可调参数在此编译） */
+const buildRootVars = (settings, {r, g, b}) => {
+    const blur = settings.blurRadius || DEFAULT_SETTINGS.blurRadius;
+    const opacity = settings.opacity || DEFAULT_SETTINGS.opacity;
+    const themeBoost = settings.themeBoost || DEFAULT_SETTINGS.themeBoost;
+    const saturation = Math.min(220, Math.max(100, settings.saturation || DEFAULT_SETTINGS.saturation));
+    const edgeHighlight = settings.edgeHighlight !== undefined ?
+        !!settings.edgeHighlight :
+        DEFAULT_SETTINGS.edgeHighlight;
+
+    const isDark = r === 0 && g === 0 && b === 0;
+    const effectiveOpacity = isDark ? Math.min(0.72, opacity + themeBoost) : opacity;
+    const a = effectiveOpacity;
+
+    // 玻璃三档（与 legacy 版一致）：主体满档、窗口淡玻璃 0.55 折、卡片 0.4 折
+    const glass = `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+    const glassTint = `rgba(${r}, ${g}, ${b}, ${(a * 0.55).toFixed(3)})`;
+    const glassCard = `rgba(${r}, ${g}, ${b}, ${(a * 0.4).toFixed(3)})`;
+    // 状态叠加色：与窗口底色反极性（深色叠白 / 浅色叠黑）
+    const ir = 255 - r;
+    const ig = 255 - g;
+    const ib = 255 - b;
+    // 边缘：开启 = 顶部高光 + 底部发丝线（深色主题用暗线、浅色用亮线）；关闭 = 无
+    const bottomHairline = isDark ? 'rgba(0, 0, 0, 0.28)' : 'rgba(255, 255, 255, 0.15)';
+    const edge = edgeHighlight ?
+        `inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 -1px 0 ${bottomHairline}` :
+        (isDark ? 'inset 0 -1px 0 rgba(0, 0, 0, 0.28)' : 'inset 0 -1px 0 rgba(255, 255, 255, 0.15)');
+    const blurSoft = Math.max(4, Math.round(blur * 0.5));
+
+    return `:root {
+    --fg-blur: ${blur}px;
+    --fg-blur-soft: ${blurSoft}px;
+    --fg-saturate: ${saturation}%;
+    --fg-filter: blur(${blur}px) saturate(${saturation}%);
+    --fg-filter-soft: blur(${blurSoft}px) saturate(${saturation}%);
+    --fg-glass: ${glass};
+    --fg-glass-tint: ${glassTint};
+    --fg-glass-card: ${glassCard};
+    --fg-hover: rgba(${ir}, ${ig}, ${ib}, 0.09);
+    --fg-active: rgba(${ir}, ${ig}, ${ib}, 0.15);
+    --fg-hover-strong: rgba(${ir}, ${ig}, ${ib}, 0.25);
+    --fg-hairline: ${edge};
+    --fg-overlay-dim: rgba(${r}, ${g}, ${b}, ${isDark ? 0.18 : 0.06});
+    --fg-brand-pct: ${Math.round(a * 100)}%;
+    --fg-brand-pct-hover: ${Math.min(96, Math.round(a * 100) + 18)}%;
+    --fg-brand-pct-soft: ${Math.round(a * 40)}%;
+}`;
+};
+
+/** 解析生效的作用范围集合 */
+const resolveTargets = settings => {
+    const selected = settings.targets;
+    if (!Array.isArray(selected) || selected.length === 0) {
+        return TARGETS;
+    }
+    return TARGETS.filter(t => selected.includes(t.id));
+};
+
+const buildStyleSheet = (settings, themeRGB) => {
+    const enabledTargets = resolveTargets(settings);
+    const parts = [buildRootVars(settings, themeRGB)];
+    for (const target of enabledTargets) {
+        const css = TARGET_CSS[target.id];
+        if (css) {
+            parts.push(`/* frosted-glass: ${target.id} */${css}`);
+        }
+    }
+    return parts.join('\n');
 };
 
 /**
- * 清除主题 RGB 缓存，下次调用 getThemeRGB() 时会重新计算。
- * 在主题切换时调用。
- * @returns {void}
+ * 应用毛玻璃（由主题系统 / 设置页调用；不再需要任何 DOM 观察）。
+ * 内容与上次一致时跳过写入，主题/参数变化时一次性替换 style 内容。
  */
-const clearThemeRGBCache = () => {
-    _cachedRGB = null;
-};
-
-/**
- * 检查参数是否与上次应用的一致，避免重复更新 style 标签。
- * @param {number} blurRadius 模糊半径
- * @param {number} opacity 生效后的不透明度
- * @param {number} r 主题底色红通道
- * @param {number} g 主题底色绿通道
- * @param {number} b 主题底色蓝通道
- * @returns {boolean} 与上次完全一致返回 true
- */
-const isSameAsLastApplied = (blurRadius, opacity, r, g, b) => {
-    if (!_lastApplied) return false;
-    return _lastApplied.blurRadius === blurRadius &&
-        _lastApplied.opacity === opacity &&
-        _lastApplied.r === r &&
-        _lastApplied.g === g &&
-        _lastApplied.b === b;
-};
-
 const applyFrostedGlass = settings => {
     if (!settings) {
-        settings = DEFAULT_SETTINGS;
+        settings = getFrostedGlassSettings() || DEFAULT_SETTINGS;
     }
-
+    const existing = document.getElementById(STYLE_ID);
     if (!settings.enabled) {
-        // Remove all frosted glass styles
-        for (const target of TARGETS) {
-            removeFrostedGlassForTarget(target.id);
-        }
+        if (existing) existing.remove();
         _lastApplied = null;
         return;
     }
-
-    const blurRadius = settings.blurRadius || DEFAULT_SETTINGS.blurRadius;
-    const opacity = settings.opacity || DEFAULT_SETTINGS.opacity;
-    // "深浅比值"：深色下额外加的透明度，浅色不加。由设置页滑块调整（0.10–0.55）
-    const themeBoost = settings.themeBoost || DEFAULT_SETTINGS.themeBoost;
-    const {r, g, b} = getThemeRGB();
-
-    // 深色模式暗度增强：深色下白字需要更不透明的深色玻璃底才清晰。
-    // getThemeRGB() 只可能返回纯黑(0,0,0)或纯白(255,255,255)，
-    // 在用户透明度基础上加 themeBoost（上限 0.72），浅色模式维持用户设定不变。
-    // themeBoost 即"深浅比值"：越小，深色与浅色的玻璃浓淡越接近。
-    const isDark = r === 0 && g === 0 && b === 0;
-    const effectiveOpacity = isDark ? Math.min(0.72, opacity + themeBoost) : opacity;
-
-    // 如果参数没变，跳过更新以避免不必要的 style 重计算
-    if (isSameAsLastApplied(blurRadius, effectiveOpacity, r, g, b)) {
-        return;
+    const sheet = buildStyleSheet(settings, getThemeRGB());
+    if (_lastApplied === sheet) return;
+    if (existing) {
+        existing.textContent = sheet;
+    } else {
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = sheet;
+        document.head.appendChild(style);
     }
-
-    // Apply to all targets
-    for (const target of TARGETS) {
-        applyFrostedGlassForTarget(target.id, blurRadius, effectiveOpacity, r, g, b);
-    }
-
-    _lastApplied = {blurRadius, opacity: effectiveOpacity, r, g, b};
+    _lastApplied = sheet;
 };
 
-// 防抖 MutationObserver：DOM 变化频繁时（如 xterm 终端渲染），
-// 只在变化停止后的一次性执行，避免性能问题
-let _observerTimer = null;
+/**
+ * 把玻璃效果注入任意同源文档（供插件设置 iframe 等独立文档使用）。
+ * 仅注入 :root 变量块与 window 作用范围的规则。
+ */
+const applyGlassToDoc = (doc, settings) => {
+    if (!doc || !doc.head || !doc.documentElement) return;
+    const existing = doc.getElementById(STYLE_ID);
+    if (!settings || !settings.enabled) {
+        if (existing) existing.remove();
+        return;
+    }
+    // 独立文档没有主题系统的 --color-scheme 时按浅色处理
+    let themeRGB;
+    try {
+        const scheme = getComputedStyle(doc.documentElement)
+            .getPropertyValue('--color-scheme')
+            .trim()
+            .toLowerCase();
+        themeRGB = scheme === 'dark' ? {r: 0, g: 0, b: 0} : {r: 255, g: 255, b: 255};
+    } catch (e) {
+        themeRGB = {r: 255, g: 255, b: 255};
+    }
+    const sheet = `${buildRootVars(settings, themeRGB)}\n${TARGET_CSS.window}`;
+    if (existing) {
+        if (existing.textContent !== sheet) existing.textContent = sheet;
+    } else {
+        const style = doc.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = sheet;
+        doc.head.appendChild(style);
+    }
+};
 
+/** 初始化：仅做一次初始应用（无观察器）。主题切换由主题系统重新调用 applyFrostedGlass。 */
 const initFrostedGlass = () => {
-    const settings = getFrostedGlassSettings();
-    applyFrostedGlass(settings);
-
-    // 监听主题切换以清除 RGB 缓存
-    // themePersistance.js 的 applyTheme 会触发 DOM 属性变化，
-    // 我们可以监听 document.documentElement 的 attribute 变化
-    const themeObserver = new MutationObserver(() => {
-        clearThemeRGBCache();
-        // 重新应用毛玻璃以使用新的主题颜色
-        const currentSettings = getFrostedGlassSettings();
-        if (currentSettings && currentSettings.enabled) {
-            applyFrostedGlass(currentSettings);
-        }
-    });
-    themeObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['style']
-    });
-
-    // 防抖的 MutationObserver：检测动态 DOM 变化（如弹窗打开/关闭）
-    // 使用防抖避免在频繁 DOM 变化（如 xterm 终端渲染）时反复更新 style
-    const domObserver = new MutationObserver(() => {
-        if (_observerTimer) {
-            clearTimeout(_observerTimer);
-        }
-        _observerTimer = setTimeout(() => {
-            _observerTimer = null;
-            const currentSettings = getFrostedGlassSettings();
-            if (currentSettings && currentSettings.enabled) {
-                applyFrostedGlass(currentSettings);
-            }
-        }, OBSERVER_DEBOUNCE_MS);
-    });
-
-    domObserver.observe(document.body || document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: false
-    });
+    applyFrostedGlass(getFrostedGlassSettings() || DEFAULT_SETTINGS);
 };
 
 export {
     TARGETS,
     DEFAULT_SETTINGS,
+    PRESETS,
     getFrostedGlassSettings,
     setFrostedGlassSettings,
     applyFrostedGlass,
+    applyGlassToDoc,
     initFrostedGlass
 };
