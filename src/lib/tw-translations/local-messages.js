@@ -458,6 +458,10 @@ const localMessages = {
         'gui.menuBar.normalMode': '普通模式',
         'gui.menuBar.caturdayMode': '猫猫模式',
 
+        // 可视化扩展/插件编辑器（工具菜单）
+        'mw.menuBar.visualExtensionEditor': '可视化扩展编辑器',
+        'mw.menuBar.visualAddonEditor': '可视化插件编辑器',
+
         // WebGL 不支持提示
         'tw.browserModal.webglDesktop': '你也可以试试在桌面端设置里打开「硬件加速」选项：',
         'tw.browserModal.webglBrowser': '请使用较新版本的 Chrome、Firefox 或 Safari，并确保显卡驱动已更新。你也可以试试在浏览器设置里打开「图形加速」或「硬件加速」选项。',

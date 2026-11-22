@@ -32,6 +32,8 @@ const MODAL_PROJECT_METADATA = 'projectMetadataModal';
 const MODAL_HELP = 'helpModal';
 const MODAL_VARIABLE_MANAGER = 'variableManagerModal';
 const MODAL_PROJECT_ASSETS_MANAGER = 'projectAssetsManagerModal';
+const MODAL_VISUAL_EXTENSION_EDITOR = 'visualExtensionEditor';
+const MODAL_VISUAL_ADDON_EDITOR = 'visualAddonEditor';
 
 const initialState = {
     [MODAL_BACKDROP_LIBRARY]: false,
@@ -65,6 +67,8 @@ const initialState = {
     [MODAL_HELP]: false,
     [MODAL_VARIABLE_MANAGER]: false,
     [MODAL_PROJECT_ASSETS_MANAGER]: false,
+    [MODAL_VISUAL_EXTENSION_EDITOR]: false,
+    [MODAL_VISUAL_ADDON_EDITOR]: false,
     projectMetadataView: 'project',
     helpEntry: null
 };
@@ -225,6 +229,18 @@ const openProjectAssetsManagerModal = function () {
 const closeProjectAssetsManagerModal = function () {
     return closeModal(MODAL_PROJECT_ASSETS_MANAGER);
 };
+const openVisualExtensionEditor = function () {
+    return openModal(MODAL_VISUAL_EXTENSION_EDITOR);
+};
+const closeVisualExtensionEditor = function () {
+    return closeModal(MODAL_VISUAL_EXTENSION_EDITOR);
+};
+const openVisualAddonEditor = function () {
+    return openModal(MODAL_VISUAL_ADDON_EDITOR);
+};
+const closeVisualAddonEditor = function () {
+    return closeModal(MODAL_VISUAL_ADDON_EDITOR);
+};
 const openSimpleDialog = function (dialogConfig) {
     return {
         type: 'scratch-gui/modals/SHOW_SIMPLE_DIALOG',
@@ -343,6 +359,10 @@ export {
     closeVariableManagerModal,
     openProjectAssetsManagerModal,
     closeProjectAssetsManagerModal,
+    openVisualExtensionEditor,
+    closeVisualExtensionEditor,
+    openVisualAddonEditor,
+    closeVisualAddonEditor,
     closeBackdropLibrary,
     closeCostumeLibrary,
     closeExtensionLibrary,

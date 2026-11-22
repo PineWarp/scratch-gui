@@ -62,7 +62,9 @@ import {
     openGitModal,
     openExtensionManagerModal,
     openHelp,
-    openSimpleDialog
+    openSimpleDialog,
+    openVisualExtensionEditor,
+    openVisualAddonEditor
 } from '../../reducers/modals';
 import {openCollaborationModal} from '../../reducers/collaboration';
 import {setPlayer} from '../../reducers/mode';
@@ -2213,6 +2215,32 @@ class MenuBar extends React.Component {
                                 <MenuSection>
                                     <MenuItem
                                         onClick={() => {
+                                            this.props.onClickVisualExtensionEditor();
+                                            this.props.onRequestCloseTools();
+                                        }}
+                                    >
+                                        <FormattedMessage
+                                            defaultMessage="Visual Extension Editor"
+                                            description="Menu bar item to open the visual node extension editor"
+                                            id="mw.menuBar.visualExtensionEditor"
+                                        />
+                                    </MenuItem>
+                                    <MenuItem
+                                        onClick={() => {
+                                            this.props.onClickVisualAddonEditor();
+                                            this.props.onRequestCloseTools();
+                                        }}
+                                    >
+                                        <FormattedMessage
+                                            defaultMessage="Visual Addon Editor"
+                                            description="Menu bar item to open the visual node addon editor"
+                                            id="mw.menuBar.visualAddonEditor"
+                                        />
+                                    </MenuItem>
+                                </MenuSection>
+                                <MenuSection>
+                                    <MenuItem
+                                        onClick={() => {
                                             this.props.onClickGitModal();
                                             this.props.onRequestCloseTools();
                                         }}
@@ -2654,6 +2682,8 @@ MenuBar.propTypes = {
     onClickPreferencesModal: PropTypes.func,
     onClickGitModal: PropTypes.func,
     onClickHelp: PropTypes.func,
+    onClickVisualExtensionEditor: PropTypes.func,
+    onClickVisualAddonEditor: PropTypes.func,
 
     onOpenSettingsModal: PropTypes.func,
     onLogOut: PropTypes.func,
@@ -2783,6 +2813,8 @@ const mapDispatchToProps = dispatch => ({
     },
     onClickHelp: () => dispatch(openHelp()),
     onOpenSettingsModal: () => dispatch(openSettingsModal()),
+    onClickVisualExtensionEditor: () => dispatch(openVisualExtensionEditor()),
+    onClickVisualAddonEditor: () => dispatch(openVisualAddonEditor()),
     onClickNew: needSave => {
         dispatch(setPlayer(false));
         dispatch(requestNewProject(needSave));

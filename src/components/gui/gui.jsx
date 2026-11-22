@@ -75,6 +75,8 @@ const FractchWorkspace = React.lazy(() => import('../mw-fractch-workspace/fractc
 // jszip). Lazy load it so it does not slow down the first editor load; it is
 // only mounted when the user actually opens the git panel.
 const TWGitModal = React.lazy(() => import('../../containers/mw-git-modal.jsx'));
+const VisualExtensionEditor = React.lazy(() => import('../../containers/visual-extension-editor-modal.jsx'));
+const VisualAddonEditor = React.lazy(() => import('../../containers/visual-addon-editor-modal.jsx'));
 
 // Heavy modal / panel components that are not shown on the initial editor
 // load. Lazy-loading them removes their code (and transitive dependencies)
@@ -995,6 +997,8 @@ const GUIComponent = props => {
             <MWExtensionManagerModal />
             <MWHelpModal />
             <MWProjectThemeModal />
+            <VisualExtensionEditor />
+            <VisualAddonEditor />
             {usernameModalVisible && (
                 <React.Suspense fallback={null}>
                     <TWUsernameModal visible={usernameModalVisible} />
