@@ -4,7 +4,7 @@
 import PropTypes from 'prop-types';
 import React from 'react';
 import {connect} from 'react-redux';
-import {closeVisualAddonEditor} from '../../reducers/modals';
+import {closeVisualAddonEditor} from '../reducers/modals';
 
 const VisualEditorModal = React.lazy(() => import('../components/visual-editor/visual-editor-modal.jsx'));
 
