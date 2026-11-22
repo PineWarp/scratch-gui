@@ -462,6 +462,10 @@ const localMessages = {
         'tw.browserModal.webglDesktop': '你也可以试试在桌面端设置里打开「硬件加速」选项：',
         'tw.browserModal.webglBrowser': '请使用较新版本的 Chrome、Firefox 或 Safari，并确保显卡驱动已更新。你也可以试试在浏览器设置里打开「图形加速」或「硬件加速」选项。',
 
+        // 设置窗口：加载作品时忽略造型
+        'mw.settingsModal.skipAssetLoading': '加载作品时忽略造型',
+        'mw.settingsModal.skipAssetLoadingHelp': '打开作品时跳过造型和声音的加载，直接进入编辑器，素材随后在后台逐步加载。素材加载完成前，角色会暂时不可见。',
+
         // 字体兜底分类
         'tw.fonts.fallback.sansSerif': '无衬线体',
         'tw.fonts.fallback.serif': '衬线体',
