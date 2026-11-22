@@ -34,6 +34,9 @@ const DEFAULT_SETTINGS = {
     saturation: 150,
     // 边缘高光：玻璃顶部 1px 高光 + 底部发丝线，增强"玻璃面板"立体感
     edgeHighlight: true,
+    // 低负载模式：大面积元素放弃 GPU 模糊（改静态玻璃底），小浮层保留真毛玻璃。
+    // 舞台持续播放动画时显著降低 GPU 负载，观感损失很小
+    lowPower: false,
     // 作用范围：null = 全部启用；数组 = 仅列出的 id 生效
     targets: null
 };
@@ -1482,25 +1485,25 @@ const TARGET_CSS = {
     "notification": 
 `
 .mw-glass-notification {
-    background: var(--fg-glass) !important;
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background: var(--fg-glass-overlay) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.15) !important;
 }`,
     "toast": 
 `
 [class*="toast-notification_toast"] {
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.15) !important;
 }`,
     "menu-bar-menu": 
 `
 [class*="menu-bar-menu"] [class*="menu_menu"] {
-    background: var(--fg-glass);
-    background-color: var(--fg-glass);
+    background: var(--fg-glass-overlay);
+    background-color: var(--fg-glass-overlay);
 }
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"]:hover,
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"].active,
@@ -1524,10 +1527,10 @@ const TARGET_CSS = {
    （隐藏态同时被 context-menu.css 的 display:none 移出渲染树，这里再加一道，
    防止以后有人改掉那条规则又把问题带回来。） */
 nav.react-contextmenu.react-contextmenu--visible {
-    background: var(--fg-glass) !important;
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background: var(--fg-glass-overlay) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
 }
 
 /* 2) scratch-blocks 原生菜单
@@ -1537,17 +1540,17 @@ nav.react-contextmenu.react-contextmenu--visible {
    叠加 .blocklyContextMenu 是为了精确限定"右键菜单"：字段下拉用 .blocklyDropDownDiv，
    不在此列，它的白底/描边逻辑保持原样。 */
 .blocklyWidgetDiv .goog-menu.blocklyContextMenu {
-    background: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
 }
 
 /* 3) sprite-folders 扩展的角色文件夹菜单 */
 .sa-folder-context-menu {
-    background: var(--fg-glass) !important;
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background: var(--fg-glass-overlay) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
 }
 
 /* 4) .fractch 文件树菜单
@@ -1555,10 +1558,10 @@ nav.react-contextmenu.react-contextmenu--visible {
    contextMenuBackground 内联成该变量，同样是字面量，只能整块覆盖。
    类名来自 CSS Module（fractch-workspace_context-menu_xxxxx），用属性子串匹配。 */
 [class*="fractch-workspace_context-menu"] {
-    background: var(--fg-glass) !important;
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background: var(--fg-glass-overlay) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
 }`,
     "popover": 
 `
@@ -1570,13 +1573,13 @@ nav.react-contextmenu.react-contextmenu--visible {
    body 前缀同时也天然限定了作用域：react-popover 是 portal 到 <body> 下的。
    不覆盖 box-shadow，保留浮层原有的投影 —— 它贴在画布 / 检查器上时靠投影分层次。 */
 body .Popover-body {
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
 }
 /* 浮层箭头（主题层同样以 (0,1,0) + !important 设成实心底色） */
 body .Popover-tipShape {
-    fill: var(--fg-glass) !important;
+    fill: var(--fg-glass-overlay) !important;
 }
 
 /* 画板插件的设置面板 —— 两者都是 .sa-xxx-settings + .sa-xxx-settings-polygon 结构，
@@ -1586,14 +1589,14 @@ body .Popover-tipShape {
    onion 面板的加减按钮本来就只有描边没有底色，玻璃底能直接透出来。 */
 .sa-onion-settings,
 .sa-resize-settings {
-    background-color: var(--fg-glass) !important;
-    backdrop-filter: var(--fg-filter) !important;
-    -webkit-backdrop-filter: var(--fg-filter) !important;
+    background-color: var(--fg-glass-overlay) !important;
+    backdrop-filter: var(--fg-filter-overlay) !important;
+    -webkit-backdrop-filter: var(--fg-filter-overlay) !important;
 }
 /* 面板下方指向按钮的小箭头 */
 .sa-onion-settings-polygon,
 .sa-resize-settings-polygon {
-    fill: var(--fg-glass) !important;
+    fill: var(--fg-glass-overlay) !important;
 }`,
 };
 
@@ -1659,15 +1662,33 @@ const buildRootVars = (settings, {r, g, b}) => {
     const edgeHighlight = settings.edgeHighlight !== undefined ?
         !!settings.edgeHighlight :
         DEFAULT_SETTINGS.edgeHighlight;
+    // 低负载模式：大面积元素（窗口/弹窗）放弃 GPU 模糊改用更实的静态玻璃底，
+    // 小浮层（菜单/右键/提示）保留真毛玻璃——卡顿主因是大面积 backdrop-filter
+    // 对着持续动画的舞台每帧重算模糊，小面积模糊成本可忽略
+    const lowPower = !!settings.lowPower;
 
     const isDark = r === 0 && g === 0 && b === 0;
     const effectiveOpacity = isDark ? Math.min(0.72, opacity + themeBoost) : opacity;
     const a = effectiveOpacity;
+    // 低负载时大面积玻璃底加实补偿（无模糊时更实的底色观感最接近毛玻璃）
+    const aLarge = lowPower ? Math.min(0.72, a + 0.15) : a;
 
-    // 玻璃三档（与 legacy 版一致）：主体满档、窗口淡玻璃 0.55 折、卡片 0.4 折
-    const glass = `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
-    const glassTint = `rgba(${r}, ${g}, ${b}, ${(a * 0.55).toFixed(3)})`;
-    const glassCard = `rgba(${r}, ${g}, ${b}, ${(a * 0.4).toFixed(3)})`;
+    const blurSoft = Math.max(4, Math.round(blur * 0.5));
+    // 大面积元素 filter（低负载 = 无模糊，仅提饱和）
+    const filterLarge = lowPower ?
+        `saturate(${saturation}%)` :
+        `blur(${blur}px) saturate(${saturation}%)`;
+    // 小浮层 filter：始终真毛玻璃
+    const filterOverlay = `blur(${blur}px) saturate(${saturation}%)`;
+
+    // 玻璃三档：大面积组（窗口主体/行块/卡片）
+    const glass = `rgba(${r}, ${g}, ${b}, ${aLarge.toFixed(3)})`;
+    const glassTint = `rgba(${r}, ${g}, ${b}, ${(aLarge * 0.55).toFixed(3)})`;
+    const glassCard = `rgba(${r}, ${g}, ${b}, ${(aLarge * 0.4).toFixed(3)})`;
+    // 小浮层组（低负载时不补偿底色，保持原浓淡）
+    const glassOverlay = `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+    const glassOverlayTint = `rgba(${r}, ${g}, ${b}, ${(a * 0.55).toFixed(3)})`;
+    const glassOverlayCard = `rgba(${r}, ${g}, ${b}, ${(a * 0.4).toFixed(3)})`;
     // 状态叠加色：与窗口底色反极性（深色叠白 / 浅色叠黑）
     const ir = 255 - r;
     const ig = 255 - g;
@@ -1677,25 +1698,28 @@ const buildRootVars = (settings, {r, g, b}) => {
     const edge = edgeHighlight ?
         `inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 -1px 0 ${bottomHairline}` :
         (isDark ? 'inset 0 -1px 0 rgba(0, 0, 0, 0.28)' : 'inset 0 -1px 0 rgba(255, 255, 255, 0.15)');
-    const blurSoft = Math.max(4, Math.round(blur * 0.5));
 
     return `:root {
     --fg-blur: ${blur}px;
     --fg-blur-soft: ${blurSoft}px;
     --fg-saturate: ${saturation}%;
-    --fg-filter: blur(${blur}px) saturate(${saturation}%);
+    --fg-filter: ${filterLarge};
     --fg-filter-soft: blur(${blurSoft}px) saturate(${saturation}%);
+    --fg-filter-overlay: ${filterOverlay};
     --fg-glass: ${glass};
     --fg-glass-tint: ${glassTint};
     --fg-glass-card: ${glassCard};
+    --fg-glass-overlay: ${glassOverlay};
+    --fg-glass-overlay-tint: ${glassOverlayTint};
+    --fg-glass-overlay-card: ${glassOverlayCard};
     --fg-hover: rgba(${ir}, ${ig}, ${ib}, 0.09);
     --fg-active: rgba(${ir}, ${ig}, ${ib}, 0.15);
     --fg-hover-strong: rgba(${ir}, ${ig}, ${ib}, 0.25);
     --fg-hairline: ${edge};
     --fg-overlay-dim: rgba(${r}, ${g}, ${b}, ${isDark ? 0.18 : 0.06});
-    --fg-brand-pct: ${Math.round(a * 100)}%;
-    --fg-brand-pct-hover: ${Math.min(96, Math.round(a * 100) + 18)}%;
-    --fg-brand-pct-soft: ${Math.round(a * 40)}%;
+    --fg-brand-pct: ${Math.round(aLarge * 100)}%;
+    --fg-brand-pct-hover: ${Math.min(96, Math.round(aLarge * 100) + 18)}%;
+    --fg-brand-pct-soft: ${Math.round(aLarge * 40)}%;
 }`;
 };
 

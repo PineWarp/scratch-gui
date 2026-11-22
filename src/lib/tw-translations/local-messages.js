@@ -442,6 +442,8 @@ const localMessages = {
         'bl.frostedGlass.saturation': '饱和度',
         'bl.frostedGlass.edgeHighlight': '边缘高光',
         'bl.frostedGlass.targetsTitle': '作用范围',
+        'bl.frostedGlass.lowPower': '低负载模式（推荐开启）',
+        'bl.frostedGlass.lowPowerHelp': '大面积窗口改用更实的静态玻璃底、不做 GPU 模糊，菜单和浮层保留真毛玻璃。舞台播放动画时大幅降低卡顿，观感损失很小。',
 
         // ------------------------------------------------------------------
         // 上游 zh-cn 漏翻（值还是英文）或整条缺失的中文补丁。

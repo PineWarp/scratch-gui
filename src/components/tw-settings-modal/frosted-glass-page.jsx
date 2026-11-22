@@ -34,6 +34,7 @@ class FrostedGlassPage extends React.Component {
             'handleThemeBoostChange',
             'handleSaturationChange',
             'handleEdgeHighlightChange',
+            'handleLowPowerChange',
             'handleTargetChange',
             'handlePreset',
             'handleResetDefaults'
@@ -49,6 +50,9 @@ class FrostedGlassPage extends React.Component {
             edgeHighlight: saved.edgeHighlight !== undefined ?
                 !!saved.edgeHighlight :
                 DEFAULT_SETTINGS.edgeHighlight,
+            lowPower: saved.lowPower !== undefined ?
+                !!saved.lowPower :
+                DEFAULT_SETTINGS.lowPower,
             // targets: null = 全部；数组 = 所选集合
             targets: Array.isArray(saved.targets) ? saved.targets : null
         };
@@ -100,6 +104,10 @@ class FrostedGlassPage extends React.Component {
         this.applyAndSave({edgeHighlight: e.target.checked});
     }
 
+    handleLowPowerChange (e) {
+        this.applyAndSave({lowPower: e.target.checked});
+    }
+
     /** 勾选 / 取消某个作用范围；全部勾选时归一化回 null（全选语义） */
     handleTargetChange (targetId, checked) {
         const current = this.state.targets === null ?
@@ -148,7 +156,8 @@ class FrostedGlassPage extends React.Component {
             opacity,
             themeBoost,
             saturation,
-            edgeHighlight
+            edgeHighlight,
+            lowPower
         } = this.state;
 
         return (
@@ -341,6 +350,30 @@ class FrostedGlassPage extends React.Component {
                                         defaultMessage="Edge Highlight"
                                     />
                                 </label>
+                            </div>
+                        </div>
+
+                        {/* 低负载模式 */}
+                        <div className={styles.setting}>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={lowPower}
+                                        onChange={this.handleLowPowerChange}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.lowPower"
+                                        defaultMessage="Low Power Mode"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.rangeLabels}>
+                                <FormattedMessage
+                                    id="bl.frostedGlass.lowPowerHelp"
+                                    defaultMessage="Large windows use a solid glass tint instead of GPU blur; menus and popups keep the real frosted effect."
+                                />
                             </div>
                         </div>
 
