@@ -61,7 +61,6 @@ import {
     openSettingsModal,
     openRestorePointModal,
     openProjectMetadataModal,
-    openShareStudioModal,
     openGitModal,
     openExtensionManagerModal,
     openHelp,
@@ -171,7 +170,7 @@ import {
     Save, ArchiveRestore, UserPen, Cloud, PackagePlus, Puzzle,
     Bookmark, GitBranch, FileCog, Bug, Database, Undo, Redo, Handshake, Wrench, Send,
     Download, AppWindow, Computer, Shield, Code, Code2, TerminalSquare, ChartColumn, ListTodo,
-    Blocks as BlocksIcon, Menu as MenuIcon, Globe, ExternalLink, Pause, Play, HelpCircle, Share2
+    Blocks as BlocksIcon, Menu as MenuIcon, Globe, ExternalLink, Pause, Play, HelpCircle
 } from 'lucide-react';
 
 import sharedMessages from '../../lib/constants/shared-messages';
@@ -366,7 +365,6 @@ class MenuBar extends React.Component {
             'handleClickPackager',
             'handleClickRestorePoints',
             'handleClickProjectMetadata',
-            'handleClickShareStudio',
             'handleClickShare',
             'handleClickMistWarpShare',
             'handleClickSeeMistWarpPage',
@@ -630,10 +628,6 @@ class MenuBar extends React.Component {
     handleClickProjectMetadata () {
         this.props.onClickProjectMetadata();
         this.props.onRequestCloseTools();
-    }
-    handleClickShareStudio () {
-        this.props.onClickShareStudio();
-        this.props.onRequestCloseFile();
     }
     handleClickAddRestorePoint = () => {
         if (this.props.vm) {
@@ -1898,16 +1892,6 @@ class MenuBar extends React.Component {
                                         </MenuSection>
                                     )}
                                     <MenuSection>
-                                        <MenuItem onClick={this.handleClickShareStudio}>
-                                            <Share2 />
-                                            <FormattedMessage
-                                                defaultMessage="Share Studio"
-                                                description="Menu bar item that opens the share card generator"
-                                                id="mw.menuBar.shareStudio"
-                                            />
-                                        </MenuItem>
-                                    </MenuSection>
-                                    <MenuSection>
                                         <MenuItem
                                             onClick={this.handleClickRestorePoints}
                                             shortcut={formatShortcutDisplay(this.getShortcut('remix'))}
@@ -2661,7 +2645,6 @@ MenuBar.propTypes = {
     onClickDesktopSettings: PropTypes.func,
     onClickPackager: PropTypes.func,
     onClickRestorePoints: PropTypes.func,
-    onClickShareStudio: PropTypes.func,
     onClickProjectMetadata: PropTypes.func,
     onClickAddRestorePoint: PropTypes.func,
     onClickExtensionManager: PropTypes.func,
@@ -2803,7 +2786,6 @@ const mapDispatchToProps = dispatch => ({
     onRequestOpenAbout: () => dispatch(openAboutMenu()),
     onRequestCloseAbout: () => dispatch(closeAboutMenu()),
     onClickRestorePoints: () => dispatch(openRestorePointModal()),
-    onClickShareStudio: () => dispatch(openShareStudioModal()),
     onClickProjectMetadata: () => dispatch(openProjectMetadataModal()),
     onClickExtensionManager: () => dispatch(openExtensionManagerModal()),
     onClickGitModal: () => {
