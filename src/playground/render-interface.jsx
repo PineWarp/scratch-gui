@@ -93,7 +93,8 @@ const readFrostedGlassSettings = () => {
         if (!parsed || !parsed.enabled) return null;
         return {
             blurRadius: typeof parsed.blurRadius === 'number' ? parsed.blurRadius : 12,
-            opacity: typeof parsed.opacity === 'number' ? parsed.opacity : 0.25
+            opacity: typeof parsed.opacity === 'number' ? parsed.opacity : 0.25,
+            themeBoost: typeof parsed.themeBoost === 'number' ? parsed.themeBoost : 0.15
         };
     } catch (e) {
         return null;
@@ -131,11 +132,11 @@ const applyFrostedGlassToAddonsIframe = iframe => {
         return;
     }
 
-    const {blurRadius, opacity} = settings;
+    const {blurRadius, opacity, themeBoost} = settings;
     const dark = isDarkColorScheme(doc);
     const [r, g, b] = dark ? [0, 0, 0] : [255, 255, 255];
-    // 与主模块同一套深色补偿
-    const alpha = dark ? Math.min(0.72, opacity + 0.30) : opacity;
+    // 与主模块同一套深色补偿（themeBoost 为"深浅比值"，可调）
+    const alpha = dark ? Math.min(0.72, opacity + themeBoost) : opacity;
     const glass = `rgba(${r}, ${g}, ${b}, ${alpha})`;
     const glassTint = `rgba(${r}, ${g}, ${b}, ${(alpha * 0.55).toFixed(3)})`;
     const cardGlass = `rgba(${r}, ${g}, ${b}, ${(alpha * 0.4).toFixed(3)})`;

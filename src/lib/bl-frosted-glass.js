@@ -5,7 +5,11 @@ const STORAGE_KEY = 'bl:frosted-glass';
 const DEFAULT_SETTINGS = {
     enabled: false,
     blurRadius: 12,
-    opacity: 0.25
+    opacity: 0.25,
+    // "深浅比值"：深色下在用户透明度基础上额外加的幅度（浅色不加）。
+    // 越大 → 深浅两种主题的玻璃浓淡差异越明显；越小 → 越接近。
+    // 可调范围 0.10–0.55（见设置页滑块）
+    themeBoost: 0.15
 };
 
 // Style tag ID 前缀
@@ -58,6 +62,18 @@ const TARGETS = [
             // 品牌色混透的通用写法：color-mix 保留色相/饱和度，只降不透明度
             const brandGlass = (token, fallback, pct) =>
                 `color-mix(in srgb, var(${token}, ${fallback}) ${pct}%, transparent)`;
+            // 状态叠加色（hover / 选中 / 激活 / 录制中）—— 与窗口底色**反极性**的低透明覆盖：
+            // 深色窗口叠白、浅色窗口叠黑。r/g/b 就是主题底色（深色 0,0,0 → 白；
+            // 浅色 255,255,255 → 黑），所以 255-r 天然得到反极性那张色。
+            // ⚠ 为什么状态态**不能**复用 glass / cardGlass：那两个是"同色相压暗"，
+            //   深色下等于黑叠黑（Δ 只有个位数色阶）、浅色下等于白叠白 ——
+            //   做状态反馈时等于没有反馈。历史 bug 全出自这一条：
+            //   侧栏菜单项 hover/选中没有底框、设置项 hover 没反应、调试器 tab
+            //   看不出选中…… 面积小的状态底不能用同色玻璃，必须给对比度。
+            // 档位经验值（与源 token 的观感对齐）：
+            //   hover 0.09 ≈ 源 $ui-tertiary / $badge-border 的视觉当量
+            //   持久态 0.13~0.15 ≈ 源 $badge-background / 选中行的强度
+            const stateTint = pct => `rgba(${255 - r}, ${255 - g}, ${255 - b}, ${pct})`;
             // 窗口内容可能挂在三类容器之下（透明化规则需覆盖全部祖先）：
             //   1. [class*="modal-content"] — React Modal / windowed-modal-content 内容容器
             //   2. .modal-window-content — WindowedModal 内容容器
@@ -178,17 +194,40 @@ const TARGETS = [
         [class*="modal-sidebar_content"] {
             background-color: transparent !important;
         }
-        /* 侧栏内的菜单项本已是 transparent，但 hover 与选中态用的是
-           $ui-tertiary / $looks-transparent 实色。在玻璃底上这些实色会破坏通透感，
-           统一改为淡玻璃底，既保留交互反馈又不出现纯色块。
-           用 glass 而非 cardGlass：侧栏之上已叠着窗口内容区的 glassTint，
-           若再用最淡的一档，hover / 选中态在玻璃上几乎看不出变化。 */
-        [class*="modal-sidebar_item"]:hover {
-            background-color: ${glass} !important;
+        /* 侧栏菜单项（设置窗口左侧导航）的 hover / 选中态底框。
+           源样式：hover 铺 $ui-tertiary（深色 #2e2e2e），选中铺 $looks-transparent
+           （品牌色 0.35）—— 两者都是**带对比度**的底色，是"当前在哪一页"的唯一指示。
+           历史写法把它们统一改成 ${glass}，而 ${glass} 是
+           rgba(主题底色, alpha)：深色下 rgba(0,0,0,.25)、浅色下 rgba(255,255,255,.25)。
+           它与侧栏自己的玻璃底**同色相**，叠上去等于没叠 ——
+           于是 hover 划过没反应、当前页也没有底框（用户截图反馈的 bug）。
+           修法：不换语义色，只把不透明度降一档，既恢复底框也不变成实色块：
+             · hover      → --ui-tertiary 混到 80%（深色合成后 ≈ #262626，仍是灰底）
+             · 选中/hover → 品牌色混到 33%（≈ --looks-transparent 的观感）
+           ⚠ 选中态**不能**直接写 var(--looks-transparent)：
+             某些主题（自定义 accent / 渐变 accent）里这个变量会算出接近透明的值，
+             基类的 .itemSelected 就因此变成"只有文字变色、没有底框"。
+             用户实测截图里能证明这一点：选中项的文字是品牌色混色（class 命中了），
+             但它所在行的底像素和侧栏底色完全一致 —— 背景等于没画。
+             改成从 --looks-secondary 现混，只要文字色能算出来，底框就一定画得出来。
+           ⚠ 选择器必须写到 [class*="modal-sidebar_item_"]（**带尾部下划线**）。
+             写成 [class*="modal-sidebar_item"] 会连 <nav class="modal-sidebar_items_*">
+             一起命中 —— 那样鼠标划过任意一项，整个侧栏列表都会被铺上一层灰。
+             选中态同理用 [class*="modal-sidebar_itemSelected_"]，而且必须单独写 :hover，
+             否则会被上面那条 (0,2,0) 的 hover 规则盖成灰色（选中项一悬停就变灰）。 */
+        [class*="modal-sidebar_item_"]:hover:not([class*="modal-sidebar_itemSelected_"]) {
+            background-color: color-mix(in srgb, var(--ui-tertiary, #2e2e2e) 80%, transparent) !important;
         }
-        [class*="modal-sidebar_item"].itemSelected,
-            [class*="modal-sidebar_itemSelected"] {
-            background-color: ${glass} !important;
+        /* 选中态：三条选择器同写，第三条同时抬特异性到 (0,3,0)：
+           [class*="modal-sidebar_"][class*="item_"][class*="itemSelected"]
+           —— 为了压过本文件后面那些"区域级透明"宽规则里可能残留的 (0,2,0) 规则。
+           background 与 background-color 都写：基类用的是 background 简写，
+           只写 background-color 在某些覆盖顺序下会被简写重置。 */
+        [class*="modal-sidebar_itemSelected_"],
+        [class*="modal-sidebar_itemSelected_"]:hover,
+        [class*="modal-sidebar_"][class*="item_"][class*="itemSelected"] {
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) 35%, transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) 35%, transparent) !important;
         }
 /* ============================================================
    第二轮：全窗口实色清扫
@@ -285,6 +324,19 @@ const TARGETS = [
             background: transparent !important;
         }
 
+/* [D-1] 项目素材管理器 — 素材树是窗口里面积最大的一块实底（$ui-primary），
+       改为与窗口内容同源的淡玻璃；行 hover 用反极性状态色，
+       避免深色玻璃上黑叠黑、看不出悬停反馈。 */
+        [class*="project-assets-manager_tree"] {
+            background-color: ${glassTint} !important;
+            background: ${glassTint} !important;
+        }
+        [class*="project-assets-manager_folder-row"]:hover,
+        [class*="project-assets-manager_file-row"]:hover {
+            background-color: ${stateTint(0.09)} !important;
+            background: ${stateTint(0.09)} !important;
+        }
+
 /* [E] 大面积装饰色块 — 这类不是窗口底层，而是内容里的一块彩色底板
        （browser-modal 的空状态插画区：300px 高、铺 $control-primary 品牌橙 #FFAB19，
        上面压一张 <img> 插画）。
@@ -304,7 +356,16 @@ const TARGETS = [
            覆盖的布局容器:
            - [class*="body"]: 几乎所有模态框内容主体 (settings/connection/browser/telemetry/record/...)
            - [class*="header"]: 模态框标题栏；[class*="footer"]: 底部操作区
-           - [class*="layout"] / [class*="sidebar"]: modal-sidebar 布局与侧边栏
+           - [class*="layout"]: modal-sidebar 布局容器
+           ⚠ 这里**不能**放 [class*="sidebar"]：侧栏模块的类名全长成
+             modal-sidebar_sidebar_<hash>、modal-sidebar_item_<hash>、
+             modal-sidebar_itemSelected_<hash>、modal-sidebar_items_<hash> ——
+             它们统统包含 "sidebar" 子串，一条 [class*="sidebar"] 会把**每个菜单项**
+             也刷成 background:transparent !important（(0,2,0) 且位置靠后），
+             正好盖掉 .itemSelected 的选中底色与 .item:hover 的悬停底色，
+             表现就是"当前页没有高亮、鼠标划过也没反应"。
+             侧栏容器本身已由上面 [class*="modal-sidebar_sidebar"] 那条单独透明化，
+             所以这里删掉即可。
            - [class*="content"]: modal-sidebar 右侧内容列 (modal-sidebar_content_*)、以及
              settings 等内容根 (settings-modal_modalContent_* 驼峰不匹配 [class*="modal-content"]，
              但命中此 [class*="content"])。addon-window-content / modal-window-content
@@ -318,7 +379,6 @@ const TARGETS = [
             ${inside} [class*="header"],
             ${inside} [class*="footer"],
             ${inside} [class*="layout"],
-            ${inside} [class*="sidebar"],
             ${inside} [class*="content"],
             ${inside} [class*="main"],
             ${inside} [class*="page"],
@@ -448,22 +508,29 @@ const TARGETS = [
            $badge-background（深色 #16202c 深蓝），hover 铺 $badge-border（#203652）。
            于是"高清画笔""循环计时器"这类**已开启**的开关会渲染成一整条实色矩形，
            在玻璃窗口里非常刺眼（截图反馈的就是这两行）。
-           两个状态都要改成玻璃：选中态用 glass（要有明确"已开启"的存在感），
-           hover 用 cardGlass（更淡的悬停提示）。
+           两个状态都要改掉，但**不能用同色玻璃**（那是"看不见"的根源）：
+           "已开启"用 stateTint(0.15)（深色下是浅一档的灰、浅色下是深一档的灰，
+           一眼能看出这一行是开启的），hover 用 stateTint(0.09)（更淡的悬停提示）。
            注意 .setting 本身无背景（transparent），只有 active/hover 才有色 ——
            所以这两个未开启的开关行（"无限克隆"等）本来就是透的，无需处理。 */
-        ${inside} [class*="settings-modal_setting"].active,
-        ${inside} [class*="settings-modal_setting"][class*="settings-modal_active"] {
-            background-color: ${glass} !important;
+        ${insideDescendant}[class*="settings-modal_setting"].active,
+        ${insideDescendant}[class*="settings-modal_setting"][class*="settings-modal_active"] {
+            background-color: ${stateTint(0.15)} !important;
         }
-        ${inside} [class*="settings-modal_setting"]:hover,
-        ${inside} [class*="settings-modal_setting"]:focus-within {
-            background-color: ${cardGlass} !important;
+        ${insideDescendant}[class*="settings-modal_setting"]:hover,
+        ${insideDescendant}[class*="settings-modal_setting"]:focus-within {
+            background-color: ${stateTint(0.09)} !important;
         }
-        /* 同理处理设置窗口里其它"选中/激活"态的实色行（对齐选择卡选中态等） */
-        ${inside} [class*="settings-modal_align-option-selected"],
-        ${inside} [class*="settings-modal_style-option-selected"] {
-            background-color: ${glass} !important;
+        /* 同理处理设置窗口里其它"选中/激活"态的实色行（对齐选择卡选中态等）。
+           · .align-option-selected 源样式铺 $looks-light-transparent（品牌色 15%）；
+             同样不敢直接吃这个变量（个别主题里它是透明的），从 --looks-secondary 现混。 */
+           · .style-option-selected 源样式与未选中同为 $ui-primary、靠蓝边 + 外发光区分，
+             已由 [G] 玻璃化；这里补一层 stateTint 让选中的卡片本体也更亮一档。 */
+        ${insideDescendant}[class*="settings-modal_align-option-selected"] {
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) 15%, transparent) !important;
+        }
+        ${insideDescendant}[class*="settings-modal_style-option-selected"] {
+            background-color: ${stateTint(0.13)} !important;
         }
         /* [G] 其它窗口里的"行/状态块"实色 — 通病是：
            行本身 transparent，但 hover / 选中 / 状态态用 $badge-background（深色 #16202c）
@@ -473,13 +540,26 @@ const TARGETS = [
              project-metadata-modal.css → .row / .status-good / .status-bad / .summary > div
              shortcut-manager.css      → .shortcutRow / .shortcutRowRecording
            注意按钮类（.refresh / .icon-button / .action-button 等）**不在此列**：
-           它们是控件而非整行底板，hover 变实色属正常交互反馈，保留。 */
-        ${inside} [class*="project-metadata-modal_row"]:hover,
-        ${inside} [class*="project-metadata-modal_status-good"],
-        ${inside} [class*="project-metadata-modal_status-bad"],
-        ${inside} [class*="project-metadata-modal_summary"] > div,
-        ${inside} [class*="shortcut-manager_shortcutRow"]:hover,
-        ${inside} [class*="shortcut-manager_shortcutRowRecording"] {
+           它们是控件而非整行底板，hover 变实色属正常交互反馈，保留。
+           ⚠ 这里必须按"交互态 / 语义态 / 静态卡"三分，不能一把铺同色玻璃：
+             · 交互态（:hover / 录制中）→ stateTint，能看见反馈
+             · 语义态（status-good 中性信息蓝 / status-bad 橙）→ 还原 token，
+               否则"成功/出错"这条最重要的信息会被玻璃抹平
+             · 静态卡（.summary > div）→ 仍用 glass，它是面板不是状态 */
+        ${insideDescendant}[class*="project-metadata-modal_row"]:hover,
+        ${insideDescendant}[class*="shortcut-manager_shortcutRow"]:hover {
+            background-color: ${stateTint(0.09)} !important;
+        }
+        ${insideDescendant}[class*="shortcut-manager_shortcutRowRecording"] {
+            background-color: ${stateTint(0.15)} !important;
+        }
+        ${insideDescendant}[class*="project-metadata-modal_status-good"] {
+            background-color: color-mix(in srgb, var(--badge-background, #16202c) 85%, transparent) !important;
+        }
+        ${insideDescendant}[class*="project-metadata-modal_status-bad"] {
+            background-color: var(--error-transparent, hsla(30, 100%, 55%, 0.25)) !important;
+        }
+        ${insideDescendant}[class*="project-metadata-modal_summary"] > div {
             background-color: ${glass} !important;
         }
         /* [G] 项目分析窗口统计卡/图表/评分区/扩展列表（global 类） */
@@ -638,8 +718,8 @@ const TARGETS = [
         }
         .sa-calculator .calc-btn-number:hover,
         .sa-calculator .calc-btn-function:hover {
-            background: ${glass} !important;
-            background-color: ${glass} !important;
+            background: ${stateTint(0.09)} !important;
+            background-color: ${stateTint(0.09)} !important;
         }
 
         /* [J-2] 待办插件窗口（todo）
@@ -652,21 +732,25 @@ const TARGETS = [
            其余 .sa-todo-add-todo / .sa-todo-modal-create-button 铺
            var(--looks-secondary) 是主操作按钮，保留。
            注意：todo 窗口用 createWindow，祖先有 .addon-window-content，
-           所以用 ${inside} 前缀即可命中，不必写 .sa-todo- 全局前缀。 */
-        ${inside} .sa-todo-list-ele,
-        ${inside} .sa-todo-modal-preview,
-        ${inside} .sa-todo-mode-tab-btn.enable,
-        ${inside} .sa-todo-mode-tab-btn.unable,
-        ${inside} .sa-todo-group-btn:not(.active) {
+           所以带窗口前缀即可命中，不必写 .sa-todo- 全局前缀。
+           ⚠ 前缀必须是 ${insideDescendant}（:is(...) 形式）而不是 ${inside}：
+             后者是逗号列表，直接拼只会把选择器接到最后一个分支上，
+             另外两个分支退化成裸的 [class*="modal-content"] / .modal-window-content
+             —— 结果是"把整块窗口内容区当成目标元素涂一遍"，真正的目标反而没命中。 */
+        ${insideDescendant}.sa-todo-list-ele,
+        ${insideDescendant}.sa-todo-modal-preview,
+        ${insideDescendant}.sa-todo-mode-tab-btn.enable,
+        ${insideDescendant}.sa-todo-mode-tab-btn.unable,
+        ${insideDescendant}.sa-todo-group-btn:not(.active) {
             background-color: ${cardGlass} !important;
             background: ${cardGlass} !important;
         }
-        ${inside} .sa-todo-mode-tab-btn.enable:hover,
-        ${inside} .sa-todo-mode-tab-btn.unable:hover,
-        ${inside} .sa-todo-mode-tab-btn.enable:active,
-        ${inside} .sa-todo-mode-tab-btn.unable:active {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+        ${insideDescendant}.sa-todo-mode-tab-btn.enable:hover,
+        ${insideDescendant}.sa-todo-mode-tab-btn.unable:hover,
+        ${insideDescendant}.sa-todo-mode-tab-btn.enable:active,
+        ${insideDescendant}.sa-todo-mode-tab-btn.unable:active {
+            background-color: ${stateTint(0.09)} !important;
+            background: ${stateTint(0.09)} !important;
         }
 
         /* [J-3] 变量管理插件窗口（variable-manager）
@@ -711,9 +795,9 @@ const TARGETS = [
             background-color: ${glass} !important;
             background: ${glass} !important;
         }
-        ${inside} [class*="shortcut-manager_resetAllButton"]:hover {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+        ${insideDescendant}[class*="shortcut-manager_resetAllButton"]:hover {
+            background-color: ${stateTint(0.09)} !important;
+            background: ${stateTint(0.09)} !important;
         }
         /* .recordPrompt 铺 $looks-transparent（本就半透明）+ 虚线边框，保留。
            .sectionDivider 用 border-top 虚线，不是背景，无需处理。 */
@@ -732,14 +816,17 @@ const TARGETS = [
        .statusIndicator（8px 状态点）、.alphaBanner / .privacyNotice /
        .joinError / .error（语义提示色块，用 $error-transparent /
        $motion-primary 8% 等半透明或品牌语义色）。 */
-        ${inside} [class*="collaboration-modal_currentUser"],
-        ${inside} [class*="collaboration-modal_privacyOptionActive"] {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+        /* .currentUser / .privacyOptionActive 源样式铺 $looks-transparent（品牌色 0.35）
+           —— 但个别主题里 --looks-transparent 会算成透明（见上面侧栏那条的说明），
+           所以这里也从 --looks-secondary 现混，保证"这是当前选中的隐私项"看得出来。 */
+        ${insideDescendant}[class*="collaboration-modal_currentUser"],
+        ${insideDescendant}[class*="collaboration-modal_privacyOptionActive"] {
+            background-color: color-mix(in srgb, var(--looks-secondary, #4c97ff) 33%, transparent) !important;
+            background: color-mix(in srgb, var(--looks-secondary, #4c97ff) 33%, transparent) !important;
         }
-        ${inside} [class*="collaboration-modal_privacyOption"]:hover {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+        ${insideDescendant}[class*="collaboration-modal_privacyOption"]:hover {
+            background-color: ${stateTint(0.09)} !important;
+            background: ${stateTint(0.09)} !important;
         }
 
 /* [M] 素材库（library）搜索行 —— 与 [K] 的 toolbar 同源问题，
@@ -805,11 +892,16 @@ const TARGETS = [
             background-color: ${cardGlass} !important;
             background: ${cardGlass} !important;
         }
-        /* 下拉里的整行 hover/selected 底板（$ui-tertiary） */
+        /* 下拉里的整行 hover/selected 底板。
+           源样式在 Dropdown.js 生成的行上：<li class="sa-block-color sa-block-color-xxx">
+           由 .sa-block-color:hover / .sel 铺 var(--sa-block-bright-background)
+           —— 是**按积木分类的品牌色实底**，也是"光标停在哪行 / 选中了哪行"的唯一指示。
+           主题原来把它压成 cardGlass：同色玻璃在黑色下拉上等于看不见，
+           既没了状态反馈、也丢了分类色。改为按分类色混透（保留色相，仍是玻璃）。 */
         .sa-find-dropdown > li:hover,
         .sa-find-dropdown > li.sel {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: color-mix(in srgb, var(--sa-block-bright-background, #4c97ff) 45%, transparent) !important;
+            background: color-mix(in srgb, var(--sa-block-bright-background, #4c97ff) 45%, transparent) !important;
         }
 
 /* [S-4] 角色文件夹（sprite-folders）的右键菜单
@@ -822,8 +914,8 @@ const TARGETS = [
             -webkit-backdrop-filter: ${glassBlur} !important;
         }
         .sa-context-menu-item:hover {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: ${stateTint(0.09)} !important;
+            background: ${stateTint(0.09)} !important;
         }
         /* .sa-context-menu-danger 与其 hover 的红色保留（危险语义）。
            .sa-toolbar-button（角色列表工具条按钮）与 .sa-file-list-toolbar（角色列表内条）
@@ -955,12 +1047,14 @@ const TARGETS = [
        asset-panel 的 .add-button（[T] 组提到的那个）；
        backpack .more；close-button .small；delete-button 的可见态；
        sprite-selector-item .is-selected .sprite-info；stage-selector 选中态 .header；
-       gui .palette-footer；sound-editor .round-button；context-menu .menu-item:hover；
+       sound-editor .round-button；context-menu .menu-item:hover；
        mw-git-modal .chipActive；mw-fractch-workspace 的 .file.selected / .action-button.toggled
                                        / .status-bar；
        tw-cloud-variable-badge .server.selected；
        mw-fractch-workspace 的选中行。
-       ⚠ .status-bar 与 .palette-footer 是**整条**通栏元素（不是按钮），一并纳入。 */
+       ⚠ .status-bar 是**整条**通栏元素（不是按钮），一并纳入。
+       ⚠ gui .palette-footer（"添加扩展"方块按钮）**不在**此列 —— 用户要求它保持原样，
+         见 [U-1b] 的豁免说明。 */
         ${inside} [class*="prompt_ok-button"],
         ${inside} [class*="record-modal_ok-button"],
         ${inside} [class*="slider-prompt_ok-button"],
@@ -1021,9 +1115,16 @@ const TARGETS = [
 
 /* [U-1b] 舞台区 / 编辑器本体里的"选中态整条" —— 它们不在 modal 内，不能带 ${inside} 前缀，
        否则永远匹配不到。这些元素铺的正是 $looks-secondary 整条色带，
-       在玻璃主题下会是最显眼的实色矩形之一。 */
-        [class*="stage-selector"][class*="is-selected"][class*="stage-selector_header"],
-        [class*="gui_palette-footer"] {
+       在玻璃主题下会是最显眼的实色矩形之一。
+
+       ⚠ 豁免：gui .palette-footer（积木区左下角那颗"添加扩展"方块按钮，
+       图标是 lucide 的 PackagePlus，在 gui.jsx 里以 ExtensionIcon 引入）。
+       它是 3.75rem × 3.25rem 的**单个功能按钮**，不是通栏色带：
+       1px $looks-secondary 描边 + 实底。玻璃化之后描边仍是实色蓝，
+       底色却变成半透明深蓝 → 视觉上只剩一个"空心描边框"，
+       用户明确要求这颗按钮不受毛玻璃主题影响（保持 Scratch 原始的实色 $looks-secondary）。
+       所以**不要**再把它加回下面这组选择器。 */
+        [class*="stage-selector"][class*="is-selected"][class*="stage-selector_header"] {
             background-color: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
             background: ${brandGlass('--looks-secondary', '#4c97ff', brandA)} !important;
             backdrop-filter: ${glassBlur} !important;
@@ -1236,8 +1337,8 @@ const TARGETS = [
         ${insideDescendant}[class*="cancel-button"]:hover,
         ${insideDescendant}[class*="cancelButton"]:hover,
         ${insideDescendant}[class*="confirm-cancel-button"]:hover {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+            background-color: ${stateTint(0.13)} !important;
+            background: ${stateTint(0.13)} !important;
         }
 
 /* [V-C] 模式 C：中性浅底小单元 —— chip / row / box / tab 类
@@ -1248,7 +1349,7 @@ const TARGETS = [
                    / .commitTypeSelect / .input / .inputSmall / .select
          shortcut-manager .keycap / .hintKey / .toolbar
          restore-point-modal .interval-selector
-         block-count .sa-complexity-score
+         project-analysis（原 block-count）.score-card / .metric-tile / .recommendation
          sprite-folders .sa-toolbar-button / .sa-file-icon
        注意 keycap 是"按键帽"—— 它是**视觉隐喻**（表示键盘按键），
        透明化后仍靠 border 保持可辨，比实色更贴合玻璃主题。 */
@@ -1263,19 +1364,21 @@ const TARGETS = [
         ${insideDescendant}[class*="shortcut-manager_hintKey"],
         ${insideDescendant}[class*="shortcut-manager_toolbar"],
         ${insideDescendant}[class*="restore-point-modal_interval-selector"],
-        ${insideDescendant}[class*="block-count_sa-complexity-score"],
+        ${insideDescendant}[class*="project-analysis_score-card"],
+        ${insideDescendant}[class*="project-analysis_metric-tile"],
+        ${insideDescendant}[class*="project-analysis_recommendation"],
         ${insideDescendant}[class*="sprite-folders_sa-toolbar-button"],
         ${insideDescendant}[class*="sprite-folders_sa-file-icon"] {
             background-color: ${cardGlass} !important;
             background: ${cardGlass} !important;
         }
-        /* [V-C] 的 hover / 选中态：同样不换 token，只提一档 */
+        /* [V-C] 的 hover / 选中态：不换 token，改用状态叠加色（同色玻璃在这里看不见） */
         ${insideDescendant}[class*="git-modal_remoteItem"]:hover,
         ${insideDescendant}[class*="git-modal_remoteRow"]:hover,
         ${insideDescendant}[class*="git-modal_chip"]:hover,
         ${insideDescendant}[class*="sprite-folders_sa-toolbar-button"]:hover {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+            background-color: ${stateTint(0.12)} !important;
+            background: ${stateTint(0.12)} !important;
         }
         /* git-modal 的 .chip 选中态源样式铺 $looks-secondary（已由 [U-1] 的
            git-modal_chipActive 覆盖），这里只需保证非选中态是玻璃，不重复。
@@ -1308,10 +1411,11 @@ const TARGETS = [
             background-color: transparent !important;
             background: transparent !important;
         }
-        /* [X-2a] 选中的 tab —— 用满档玻璃，保证"当前在哪一页"看得出来 */
+        /* [X-2a] 选中的 tab —— 源样式铺 --ui-secondary（中性面），
+           用 stateTint(0.14) 比同色玻璃更清楚："当前在哪一页"必须一眼能看出来。 */
         .sa-debugger-window .mw-debugger-tab-active {
-            background-color: ${glass} !important;
-            background: ${glass} !important;
+            background-color: ${stateTint(0.14)} !important;
+            background: ${stateTint(0.14)} !important;
         }
         /* [X-2b] 中性 chrome / 内容单元：它们是控件或行，不是区域板，
            给一层淡玻璃保留单元可辨性（档位同 [V-B] / [V-C]） */
@@ -1324,15 +1428,15 @@ const TARGETS = [
             background-color: ${cardGlass} !important;
             background: ${cardGlass} !important;
         }
-        /* [X-3] hover：照旧**不换 token**，只提一档。
+        /* [X-3] hover：不换 token，用状态叠加色（同色玻璃在这里看不见）。
            两点收窄：
              · 选中的 tab 排除在外（否则 hover 会把"选中"提得更淡，反而看不出选中）
              · warn / error 行排除在外 —— 源 CSS 里 [data-type] 的语义底写在 :hover 之后、
                特异性相同，本来就把 hover 盖掉了；不排除的话我们这条会把黄/红底冲掉。 */
         .sa-debugger-window .mw-debugger-tab:not(.mw-debugger-tab-active):hover,
         .sa-debugger-window .sa-debugger-log:not([data-type="warn"]):not([data-type="error"]):hover {
-            background-color: ${cardGlass} !important;
-            background: ${cardGlass} !important;
+            background-color: ${stateTint(0.09)} !important;
+            background: ${stateTint(0.09)} !important;
         }
         /* [X-4] 品牌色：① "恢复运行"按钮（暂停时才出现，源色 $pen-primary）
                         ② 日志行的跳转链接 hover（源色 $looks-secondary + 白字）
@@ -1372,6 +1476,30 @@ const TARGETS = [
         ${insideDescendant}[class*="diff-viewer_viewer"] {
             background-color: transparent !important;
             background: transparent !important;
+        }
+
+/* [Y] 积木区调色板（palette flyout）—— "画框"那块底板的玻璃化。
+       DOM 见 node_modules/scratch-blocks/core/flyout_base.js:295：
+         <svg class="blocklyFlyout">                 ← 底板本体（独立 svg 盒子）
+           <path class="blocklyFlyoutBackground"/>   ← 圆角底板，fill 由 API 写入
+           <g class="blocklyFlyout"> 积木 </g>
+       底色有两个来源，必须一起处理，只改一处会残留实色：
+         1) svg 的行内 style.backgroundColor（containers/blocks.jsx:830 写入
+            getBlockColors().flyout，深色主题是 gui/dark.js:63 的 #111111）
+            —— 行内样式只能用 !important 覆盖；
+         2) path 的 fill 是**呈现属性**（blocks.jsx:825 / flyout.setBackgroundColour_），
+            任何 CSS 规则都能盖过它，但必须清成 transparent —— 否则这层实色底会把
+            backdrop-filter 糊住，糊完还是纯色块（玻璃等于白做）。
+       backdrop-filter 放在 svg 上是有效的：它是一个独立盒子，不是 SVG 内部元素，
+       所以能吃到下面画布/壁纸的模糊 —— 参数与 [S] 组"自承载玻璃浮层"保持一致。 */
+        svg.blocklyFlyout {
+            background-color: ${glass} !important;
+            backdrop-filter: ${glassBlur} !important;
+            -webkit-backdrop-filter: ${glassBlur} !important;
+        }
+        svg.blocklyFlyout > path.blocklyFlyoutBackground,
+        svg.blocklyFlyout > rect.blocklyFlyoutBackground {
+            fill: transparent !important;
         }`;
         }
     },
@@ -1446,6 +1574,76 @@ const TARGETS = [
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"].active,
 [class*="menu-bar-menu"] [class*="menu_menu"] [class*="menu-item"].expanded {
     background-color: rgba(${hoverR}, ${hoverG}, ${hoverB}, ${hoverA});
+}`;
+        }
+    },
+    // 右键菜单 — 全站 4 套实现，与 src/lib/bl-menu-animation.css 的动画选择器一一对应：
+    //   1) react-contextmenu —— 角色 / 造型 / 声音 / 背包积木 / 变量监视器
+    //   2) scratch-blocks 原生菜单 —— 积木 / 工作区 / 积木区
+    //   3) sprite-folders 扩展 —— 角色文件夹
+    //   4) mw-fractch-workspace —— .fractch 文件树
+    // 菜单面积小、又常压在积木/舞台这类高饱和画面上，所以用满 alpha
+    // （不像窗口主体那样打 0.55 折），否则会糊成一片灰、边界也看不出来。
+    // 只加 backdrop-filter + 透明底色，不动 color / border / box-shadow：
+    // 文字与描边来自同一套主题 token，跟着主题走即可。
+    {
+        id: 'context-menu',
+        labelId: 'bl.frostedGlass.target.contextMenu',
+        defaultMessage: 'Context Menu',
+        css: (blur, alpha, r, g, b) => {
+            const glass = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            const glassBlur = `blur(${blur}px) saturate(150%)`;
+            return `
+/* 1) react-contextmenu
+   实色底来自 context-menu.css 的 .context-menu{background-color:var(--ui-white)}
+   （CSS Module，类名被哈希）。库在 ContextMenu.js 里用
+   cx(cssClasses.menu, className, …) 把 'react-contextmenu' 和 Module 类名一起挂在
+   <nav> 上，所以直接命中库类名即可，不必依赖哈希后的名字。
+   ScratchAddons 的动态菜单项（addons/contextmenu.js）只是往同一个 <nav> 里插
+   .sa-ctx-menu 子节点，一并被覆盖。
+
+   必须限定 .react-contextmenu--visible：库把菜单隐藏时只写 inline
+   opacity:0 / pointer-events:none，<nav> 仍留在 DOM 里。每条 backdrop-filter
+   都会给元素建立独立合成层并让它在背后内容变化时重算模糊，若对隐藏态也生效，
+   背包这种“每一项一个菜单”的列表会按项数线性拖慢整个编辑器。
+   （隐藏态同时被 context-menu.css 的 display:none 移出渲染树，这里再加一道，
+   防止以后有人改掉那条规则又把问题带回来。） */
+nav.react-contextmenu.react-contextmenu--visible {
+    background: ${glass} !important;
+    background-color: ${glass} !important;
+    backdrop-filter: ${glassBlur} !important;
+    -webkit-backdrop-filter: ${glassBlur} !important;
+}
+
+/* 2) scratch-blocks 原生菜单
+   实色底来自 Blockly 注入的 .blocklyWidgetDiv .goog-menu{background:$colour_contextMenuBackground}
+   —— $ 变量在 Css.inject() 生成样式表时就被替换成字面量（暗色是 #111111），
+   DOM 里拿不到变量，只能整块覆盖。
+   叠加 .blocklyContextMenu 是为了精确限定"右键菜单"：字段下拉用 .blocklyDropDownDiv，
+   不在此列，它的白底/描边逻辑保持原样。 */
+.blocklyWidgetDiv .goog-menu.blocklyContextMenu {
+    background: ${glass} !important;
+    backdrop-filter: ${glassBlur} !important;
+    -webkit-backdrop-filter: ${glassBlur} !important;
+}
+
+/* 3) sprite-folders 扩展的角色文件夹菜单 */
+.sa-folder-context-menu {
+    background: ${glass} !important;
+    background-color: ${glass} !important;
+    backdrop-filter: ${glassBlur} !important;
+    -webkit-backdrop-filter: ${glassBlur} !important;
+}
+
+/* 4) .fractch 文件树菜单
+   底色是 --mw-menu-background，由 fractch-workspace.jsx 把 Blockly 的
+   contextMenuBackground 内联成该变量，同样是字面量，只能整块覆盖。
+   类名来自 CSS Module（fractch-workspace_context-menu_xxxxx），用属性子串匹配。 */
+[class*="fractch-workspace_context-menu"] {
+    background: ${glass} !important;
+    background-color: ${glass} !important;
+    backdrop-filter: ${glassBlur} !important;
+    -webkit-backdrop-filter: ${glassBlur} !important;
 }`;
         }
     },
@@ -1629,13 +1827,16 @@ const applyFrostedGlass = settings => {
 
     const blurRadius = settings.blurRadius || DEFAULT_SETTINGS.blurRadius;
     const opacity = settings.opacity || DEFAULT_SETTINGS.opacity;
+    // "深浅比值"：深色下额外加的透明度，浅色不加。由设置页滑块调整（0.10–0.55）
+    const themeBoost = settings.themeBoost || DEFAULT_SETTINGS.themeBoost;
     const {r, g, b} = getThemeRGB();
 
     // 深色模式暗度增强：深色下白字需要更不透明的深色玻璃底才清晰。
     // getThemeRGB() 只可能返回纯黑(0,0,0)或纯白(255,255,255)，
-    // 在用户透明度基础上加 0.30（上限 0.72），浅色模式维持用户设定不变。
+    // 在用户透明度基础上加 themeBoost（上限 0.72），浅色模式维持用户设定不变。
+    // themeBoost 即"深浅比值"：越小，深色与浅色的玻璃浓淡越接近。
     const isDark = r === 0 && g === 0 && b === 0;
-    const effectiveOpacity = isDark ? Math.min(0.72, opacity + 0.30) : opacity;
+    const effectiveOpacity = isDark ? Math.min(0.72, opacity + themeBoost) : opacity;
 
     // 如果参数没变，跳过更新以避免不必要的 style 重计算
     if (isSameAsLastApplied(blurRadius, effectiveOpacity, r, g, b)) {
