@@ -462,6 +462,10 @@ const localMessages = {
         'tw.browserModal.webglDesktop': '你也可以试试在桌面端设置里打开「硬件加速」选项：',
         'tw.browserModal.webglBrowser': '请使用较新版本的 Chrome、Firefox 或 Safari，并确保显卡驱动已更新。你也可以试试在浏览器设置里打开「图形加速」或「硬件加速」选项。',
 
+        // 设置窗口：极致性能模式
+        'mw.settingsModal.extremePerformance': '极致性能',
+        'mw.settingsModal.extremePerformanceHelp': '一键榨干性能：打开作品时跳过造型/声音加载，作品秒开；禁用动画、毛玻璃、阴影与滤镜等一切视觉特效；关闭插值渲染与高清画笔，减轻每帧渲染负担。保存与打包保持完整保真、不受影响，关闭本设置后尽量恢复原有渲染设置。鸣谢 PYC5635（勇敢的菠萝🍍）。',
+
         // 字体兜底分类
         'tw.fonts.fallback.sansSerif': '无衬线体',
         'tw.fonts.fallback.serif': '衬线体',

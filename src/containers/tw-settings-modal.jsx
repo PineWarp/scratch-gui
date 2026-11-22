@@ -20,6 +20,7 @@ import {getVanillaPalette, setVanillaPalette} from '../lib/mw-vanilla-palette';
 import {getEmbedGitOnSave, setEmbedGitOnSave} from '../lib/mw-embed-git-on-save';
 import {getDisableCloudVariables, setDisableCloudVariables} from '../lib/mw-editor-defaults.js';
 import LazyScratchBlocks from '../lib/tw-lazy-scratch-blocks';
+import {getExtremePerformance, setExtremePerformance} from '../lib/mw-extreme-performance';
 import AddonHooks from '../addons/hooks.js';
 import WindowManager from '../addons/window-system/window-manager';
 
@@ -81,6 +82,7 @@ class UsernameModal extends React.Component {
             enableStageResize: safeGetItem('mw:enable-stage-resize') !== 'false',
             windowAnimation: safeGetItem('mw:window-animation') !== 'false',
             scriptLazyLoading: LazyScratchBlocks.isScriptLazyLoadingEnabled(),
+            extremePerformance: getExtremePerformance(),
             hideOperatorArrows: getHideOperatorArrows(),
             vanillaPalette: getVanillaPalette(),
             embedGitOnSave: getEmbedGitOnSave(),
@@ -118,6 +120,7 @@ class UsernameModal extends React.Component {
             'handleCloudVariableServerChange',
             'handleWindowAnimationChange',
             'handleScriptLazyLoadingChange',
+    'handleExtremePerformanceChange',
             'handleHideOperatorArrowsChange',
             'handleVanillaPaletteChange',
             'handleEmbedGitOnSaveChange',
@@ -348,6 +351,12 @@ class UsernameModal extends React.Component {
         }
     }
 
+    handleExtremePerformanceChange (e) {
+        const enabled = e.target.checked;
+        this.setState({extremePerformance: enabled});
+        setExtremePerformance(this.props.vm, enabled);
+    }
+
     handleHideOperatorArrowsChange (e) {
         this.setState({hideOperatorArrows: e.target.checked});
         setHideOperatorArrows(e.target.checked);
@@ -451,6 +460,8 @@ class UsernameModal extends React.Component {
                 onWindowAnimationChange={this.handleWindowAnimationChange}
                 scriptLazyLoading={this.state.scriptLazyLoading}
                 onScriptLazyLoadingChange={this.handleScriptLazyLoadingChange}
+                extremePerformance={this.state.extremePerformance}
+                onExtremePerformanceChange={this.handleExtremePerformanceChange}
                 onHideOperatorArrowsChange={this.handleHideOperatorArrowsChange}
                 hideOperatorArrows={this.state.hideOperatorArrows}
                 onVanillaPaletteChange={this.handleVanillaPaletteChange}

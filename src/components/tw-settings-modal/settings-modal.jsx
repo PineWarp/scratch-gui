@@ -499,6 +499,21 @@ const settingDefinitions = {
             id: 'mw.settingsModal.embedGitOnSaveHelp'
         }
     },
+    extremePerformance: {
+        label: {
+            defaultMessage: 'Extreme Performance Mode',
+            description: 'One-click mode that gives up all visual effects for maximum performance',
+            id: 'mw.settingsModal.extremePerformance'
+        },
+        help: {
+            defaultMessage: 'Skips costume/sound loading when opening projects, disables animations, frosted glass, ' +
+                'shadows and filters, turns off interpolated rendering and high-quality pen to reduce per-frame ' +
+                'rendering cost. Saving and packaging stay lossless. Rendering settings are restored when disabled. ' +
+                'Contributed by PYC5635 (勇敢的菠萝🍍).',
+            description: 'Extreme performance mode help',
+            id: 'mw.settingsModal.extremePerformanceHelp'
+        }
+    },
     squareStageCorners: {
         label: {
             defaultMessage: 'Square Stage Corners',
@@ -678,6 +693,7 @@ const RealLayerIndexes = createBooleanSetting('RealLayerIndexes', settingDefinit
 const EnableStageResize = createBooleanSetting('EnableStageResize', settingDefinitions.enableStageResize);
 const WindowAnimation = createBooleanSetting('WindowAnimation', settingDefinitions.windowAnimation);
 const ScriptLazyLoading = createBooleanSetting('ScriptLazyLoading', settingDefinitions.scriptLazyLoading);
+const ExtremePerformance = createBooleanSetting('ExtremePerformance', settingDefinitions.extremePerformance);
 const EmbedGitOnSave = createBooleanSetting('EmbedGitOnSave', settingDefinitions.embedGitOnSave);
 const SquareStageCorners = createBooleanSetting('SquareStageCorners', settingDefinitions.squareStageCorners);
 const HideDeleteButton = createBooleanSetting('HideDeleteButton', settingDefinitions.hideDeleteButton);
@@ -1380,6 +1396,17 @@ const pageConfigurations = {
                         })
                     }
                 ]
+            },
+            {
+                settings: [
+                    {
+                        component: ExtremePerformance,
+                        props: props => ({
+                            value: props.extremePerformance,
+                            onChange: props.onExtremePerformanceChange
+                        })
+                    }
+                ]
             }
         ]
     }
@@ -1764,7 +1791,9 @@ SettingsModalComponent.propTypes = {
     scriptLazyLoading: PropTypes.bool,
     onScriptLazyLoadingChange: PropTypes.func,
     embedGitOnSave: PropTypes.bool,
-    onEmbedGitOnSaveChange: PropTypes.func
+    onEmbedGitOnSaveChange: PropTypes.func,
+    extremePerformance: PropTypes.bool,
+    onExtremePerformanceChange: PropTypes.func
 };
 
 export default injectIntl(SettingsModalComponent);
