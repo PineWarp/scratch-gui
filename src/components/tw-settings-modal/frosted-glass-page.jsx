@@ -344,7 +344,7 @@ class FrostedGlassPage extends React.Component {
                             </div>
                         </div>
 
-                        {/* 作用范围 */}
+                        {/* 作用范围（react-intl 消息必须静态可求值，此处逐一展开） */}
                         <div className={styles.setting}>
                             <div className={styles.label}>
                                 <FormattedMessage
@@ -352,25 +352,104 @@ class FrostedGlassPage extends React.Component {
                                     defaultMessage="Apply To"
                                 />
                             </div>
-                            {TARGETS.map(target => (
-                                <div
-                                    key={target.id}
-                                    className={styles.label}
-                                >
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            checked={this.isTargetChecked(target.id)}
-                                            onChange={e => this.handleTargetChange(target.id, e.target.checked)}
-                                            className={styles.checkbox}
-                                        />
-                                        <FormattedMessage
-                                            id={target.labelId}
-                                            defaultMessage={target.defaultMessage}
-                                        />
-                                    </label>
-                                </div>
-                            ))}
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('window')}
+                                        onChange={e => this.handleTargetChange('window', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.window"
+                                        defaultMessage="Window"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('alert')}
+                                        onChange={e => this.handleTargetChange('alert', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.alert"
+                                        defaultMessage="Alerts"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('notification')}
+                                        onChange={e => this.handleTargetChange('notification', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.notification"
+                                        defaultMessage="Notification"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('toast')}
+                                        onChange={e => this.handleTargetChange('toast', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.toast"
+                                        defaultMessage="Toast"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('menu-bar-menu')}
+                                        onChange={e => this.handleTargetChange('menu-bar-menu', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.menuBarMenu"
+                                        defaultMessage="Menu Bar Menus"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('context-menu')}
+                                        onChange={e => this.handleTargetChange('context-menu', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.contextMenu"
+                                        defaultMessage="Context Menu"
+                                    />
+                                </label>
+                            </div>
+                            <div className={styles.label}>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={this.isTargetChecked('popover')}
+                                        onChange={e => this.handleTargetChange('popover', e.target.checked)}
+                                        className={styles.checkbox}
+                                    />
+                                    <FormattedMessage
+                                        id="bl.frostedGlass.target.popover"
+                                        defaultMessage="Popover / Panels"
+                                    />
+                                </label>
+                            </div>
                         </div>
                     </React.Fragment>
                 )}
