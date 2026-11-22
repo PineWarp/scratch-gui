@@ -20,7 +20,7 @@ import {getVanillaPalette, setVanillaPalette} from '../lib/mw-vanilla-palette';
 import {getEmbedGitOnSave, setEmbedGitOnSave} from '../lib/mw-embed-git-on-save';
 import {getDisableCloudVariables, setDisableCloudVariables} from '../lib/mw-editor-defaults.js';
 import LazyScratchBlocks from '../lib/tw-lazy-scratch-blocks';
-import {getExtremePerformance, setExtremePerformance} from '../lib/mw-extreme-performance';
+import {getExtremePerformance, applyExtremePerformance, setExtremePerformance} from '../lib/mw-extreme-performance';
 import AddonHooks from '../addons/hooks.js';
 import WindowManager from '../addons/window-system/window-manager';
 
@@ -134,6 +134,12 @@ class UsernameModal extends React.Component {
             'handleTabLooksChange',
             'handleWindowStyleChange'
         ]);
+    }
+
+    componentDidMount () {
+        // 持久化设置在编辑器重启后也要生效：state 初始化只读取了值，
+        // 必须在此把极致模式真正应用到 VM/渲染器/毛玻璃（否则重启后形同虚设）
+        applyExtremePerformance(this.props.vm, getExtremePerformance());
     }
 
     handleFramerateChange (e) {
