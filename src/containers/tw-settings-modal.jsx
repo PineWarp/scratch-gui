@@ -20,7 +20,7 @@ import {getVanillaPalette, setVanillaPalette} from '../lib/mw-vanilla-palette';
 import {getEmbedGitOnSave, setEmbedGitOnSave} from '../lib/mw-embed-git-on-save';
 import {getDisableCloudVariables, setDisableCloudVariables} from '../lib/mw-editor-defaults.js';
 import LazyScratchBlocks from '../lib/tw-lazy-scratch-blocks';
-import {getSkipAssetLoading, setSkipAssetLoading} from '../lib/mw-skip-asset-loading';
+import {getSkipAssetLoading, setSkipAssetLoading, applySkipAssetLoading} from '../lib/mw-skip-asset-loading';
 import AddonHooks from '../addons/hooks.js';
 import WindowManager from '../addons/window-system/window-manager';
 
@@ -131,9 +131,15 @@ class UsernameModal extends React.Component {
             'handleHideBackpackChange',
             
             'handleTabStyleChange',
-            'handleTabLooksChange',
+            'handleLooksChange',
             'handleWindowStyleChange'
         ]);
+    }
+
+    componentDidMount () {
+        // 持久化设置在编辑器重启后也要生效：state 初始化只读取了值，
+        // 必须在此把设置真正应用到 VM（否则开关形同虚设）
+        applySkipAssetLoading(this.props.vm);
     }
 
     handleFramerateChange (e) {
