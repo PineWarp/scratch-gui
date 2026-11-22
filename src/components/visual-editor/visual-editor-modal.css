@@ -1,239 +1,306 @@
-/* 可视化节点编辑器样式 */
-.ve-modal {
+/* 可视化节点编辑器 · UE 蓝图风格样式（CSS Modules，组件内经 styles.xxx 引用） */
+
+.veModal {
     position: fixed;
     inset: 0;
     z-index: 500;
-    background: #1e2330;
-    color: #e8ecf5;
+    background: #0f1420;
+    color: #dce4f2;
     display: flex;
     flex-direction: column;
     font-family: inherit;
     direction: ltr;
+    box-shadow: inset 0 0 120px rgba(0, 0, 0, .45);
 }
 
-.ve-topbar {
+.veTopbar {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 14px;
-    background: #151a26;
-    border-bottom: 1px solid #2a3348;
+    padding: 7px 14px;
+    background: linear-gradient(180deg, #1a2233, #141a28);
+    border-bottom: 1px solid #2c3852;
     flex-shrink: 0;
 }
 
-.ve-title {
+.veTitle {
     font-weight: bold;
     font-size: 15px;
     white-space: nowrap;
+    color: #eaf1ff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
 }
 
-.ve-mode-badge {
+.veModeBadge {
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 2px 10px;
     border-radius: 10px;
-    background: #2d5b8e;
+    background: linear-gradient(180deg, #2d5b8e, #23466f);
+    border: 1px solid #3f6ea5;
     white-space: nowrap;
+    color: #cfe3ff;
 }
 
-.ve-breadcrumb {
+.veBreadcrumb {
     font-size: 12px;
-    color: #9fb3d4;
+    color: #8fa4c8;
     display: flex;
-    gap: 6px;
+    gap: 4px;
     align-items: center;
     overflow: hidden;
     white-space: nowrap;
+    margin-left: 4px;
 }
 
-.ve-breadcrumb .ve-crumb {
+.veCrumb {
     cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    border: 1px solid transparent;
 }
 
-.ve-breadcrumb .ve-crumb:hover {
-    background: #2a3348;
+.veCrumb:hover {
+    background: #25304a;
+    border-color: #35415f;
     color: #fff;
 }
 
-.ve-topbar .ve-toolbar {
+.veCrumbCurrent {
+    color: #ffd479;
+    font-weight: bold;
+    cursor: default;
+}
+
+.veToolbar {
     margin-left: auto;
     display: flex;
-    gap: 8px;
+    gap: 7px;
+    align-items: center;
 }
 
-.ve-btn {
-    background: #2d5b8e;
+.veBtn {
+    background: linear-gradient(180deg, #33639c, #27507e);
     color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
+    border: 1px solid #487ab0;
+    border-radius: 5px;
+    padding: 5px 11px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12.5px;
     white-space: nowrap;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, .4);
 }
-.ve-btn:hover { background: #3670b3; }
-.ve-btn:disabled { opacity: .4; cursor: default; }
-.ve-btn.ve-btn-secondary { background: #3a4661; }
-.ve-btn.ve-btn-secondary:hover { background: #4a5a7a; }
-.ve-btn.ve-btn-danger { background: #8e2d2d; }
-.ve-btn.ve-btn-danger:hover { background: #b33a3a; }
-.ve-btn.ve-btn-success { background: #2d8e5b; }
-.ve-btn.ve-btn-success:hover { background: #3aa870; }
+.veBtn:hover { background: linear-gradient(180deg, #3e77b8, #2f5f92); }
+.veBtn:active { transform: translateY(1px); }
+.veBtn:disabled { opacity: .4; cursor: default; }
+.veBtnSecondary { background: linear-gradient(180deg, #38445e, #2c3649); border-color: #4a5878; }
+.veBtnSecondary:hover { background: linear-gradient(180deg, #445273, #364260); }
+.veBtnDanger { background: linear-gradient(180deg, #963535, #7a2b2b); border-color: #b04a4a; }
+.veBtnDanger:hover { background: linear-gradient(180deg, #ad4242, #8c3535); }
+.veBtnSuccess { background: linear-gradient(180deg, #2f8e5b, #257049); border-color: #48a873; }
+.veBtnSuccess:hover { background: linear-gradient(180deg, #3aa86c, #2c8757); }
 
-.ve-body {
+.veBody {
     flex: 1;
     display: flex;
     min-height: 0;
 }
 
-.ve-palette {
-    width: 240px;
+/* ---------- 左侧节点面板 ---------- */
+.vePalette {
+    width: 235px;
     flex-shrink: 0;
-    background: #171c29;
-    border-right: 1px solid #2a3348;
+    background: #121826;
+    border-right: 1px solid #2c3852;
     display: flex;
     flex-direction: column;
 }
 
-.ve-palette-search {
+.vePaletteSearch {
     padding: 8px;
-    border-bottom: 1px solid #2a3348;
+    border-bottom: 1px solid #2c3852;
 }
-.ve-palette-search input {
+
+.vePaletteSearchInput {
     width: 100%;
     box-sizing: border-box;
-    background: #10141f;
-    color: #e8ecf5;
-    border: 1px solid #2a3348;
+    background: #0c111c;
+    color: #dce4f2;
+    border: 1px solid #2c3852;
     border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 13px;
+    padding: 6px 9px;
+    font-size: 12.5px;
     outline: none;
 }
+.vePaletteSearchInput:focus { border-color: #487ab0; }
 
-.ve-palette-list {
+.vePaletteList {
     flex: 1;
     overflow-y: auto;
-    padding: 6px;
+    padding: 4px 6px 10px;
 }
+.vePaletteList::-webkit-scrollbar { width: 8px; }
+.vePaletteList::-webkit-scrollbar-thumb { background: #2c3852; border-radius: 4px; }
 
-.ve-palette-cat {
-    font-size: 11px;
-    color: #7a8db3;
-    margin: 8px 4px 4px;
+.vePaletteCat {
+    font-size: 10.5px;
+    font-weight: bold;
+    color: #6f84ad;
+    margin: 10px 4px 4px;
     text-transform: uppercase;
-    letter-spacing: .5px;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #232c42;
+    padding-bottom: 3px;
 }
 
-.ve-palette-item {
+.vePaletteItem {
     display: block;
     width: 100%;
     text-align: left;
-    background: #1d2536;
-    color: #cdd9ec;
-    border: 1px solid #2a3348;
-    border-radius: 6px;
-    padding: 6px 8px;
-    margin: 2px 0;
-    font-size: 12.5px;
+    background: #1a2233;
+    color: #c3d1e8;
+    border: 1px solid #26314a;
+    border-left: 3px solid #3d5a8c;
+    border-radius: 5px;
+    padding: 5px 9px;
+    margin: 3px 0;
+    font-size: 12px;
     cursor: grab;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    transition: background .08s;
 }
-.ve-palette-item:hover { background: #263252; color: #fff; }
+.vePaletteItem:hover { background: #25314d; color: #fff; border-left-color: #7aa8ff; }
 
-.ve-canvas-wrap {
+/* ---------- 画布 ---------- */
+.veCanvasWrap {
     flex: 1;
     position: relative;
     overflow: hidden;
-    background:
-        linear-gradient(#232b3d 1px, transparent 1px),
-        linear-gradient(90deg, #232b3d 1px, transparent 1px);
-    background-size: 40px 40px;
-    background-color: #1a2030;
+    background-color: #0d1119;
+    background-image:
+        linear-gradient(rgba(56, 72, 108, .22) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 72, 108, .22) 1px, transparent 1px),
+        linear-gradient(rgba(56, 72, 108, .38) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 72, 108, .38) 1px, transparent 1px);
+    background-size: 16px 16px, 16px 16px, 80px 80px, 80px 80px;
     cursor: default;
 }
 
-.ve-canvas-wrap.panning { cursor: grabbing; }
+.veCanvasWrapPanning { cursor: grabbing !important; }
 
-.ve-viewport {
+.veViewport {
     position: absolute;
     top: 0;
     left: 0;
     transform-origin: 0 0;
 }
 
-.ve-node {
+/* ---------- 节点 ---------- */
+.veNode {
     position: absolute;
-    background: #232c44;
-    border: 1px solid #3a4661;
-    border-radius: 8px;
-    min-width: 170px;
-    max-width: 300px;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+    background: rgba(26, 32, 48, .96);
+    border: 1px solid #3c4a6b;
+    border-radius: 7px;
+    min-width: 190px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .05);
     user-select: none;
 }
-.ve-node.ve-node-selected { border-color: #5b9dff; box-shadow: 0 0 0 2px rgba(91, 157, 255, .35); }
-.ve-node.ve-node-event { background: #2b3a5e; border-color: #4a5f96; }
-.ve-node.ve-node-flow { background: #223a2e; border-color: #3a5f48; }
-.ve-node.ve-node-expr { background: #3a2f22; border-color: #66543a; }
-.ve-node.ve-node-func { background: #33235c; border-color: #5c4096; }
-.ve-node.ve-node-block { background: #3a2b5e; border-color: #7d5cc4; }
-.ve-node.ve-node-addon { background: #2b5e50; border-color: #4a966a; }
+.veNodeSelected {
+    border-color: #7aa8ff;
+    box-shadow: 0 0 0 2px rgba(122, 168, 255, .4), 0 4px 18px rgba(0, 0, 0, .55);
+}
 
-.ve-node-title {
-    padding: 6px 10px;
-    font-size: 12.5px;
+.veNodeTitle {
+    padding: 5px 10px 5px 12px;
+    font-size: 12px;
     font-weight: bold;
-    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    color: #fff;
+    border-radius: 6px 6px 0 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: grab;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+    border-bottom: 1px solid rgba(0, 0, 0, .35);
+    white-space: nowrap;
+    overflow: hidden;
 }
-.ve-node-title .ve-node-id {
+.veNodeId {
     font-size: 9px;
-    opacity: .5;
+    opacity: .75;
     font-weight: normal;
+    margin-left: 6px;
 }
 
-.ve-node-ports {
-    padding: 4px 0 6px;
+.veNodeBody {
+    padding: 5px 0 6px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
 
-.ve-port-row {
+.vePortRow {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 10.5px;
-    color: #a8b8d8;
+    gap: 7px;
+    font-size: 11px;
+    color: #b9c8e2;
     padding: 0 10px;
     position: relative;
-    height: 16px;
+    height: 18px;
 }
-.ve-port-row.output { justify-content: flex-end; }
+.vePortRowOutput { justify-content: flex-end; }
 
-.ve-port-dot {
-    width: 11px;
-    height: 11px;
-    border-radius: 6px;
-    border: 2px solid #5b9dff;
-    background: #1a2030;
+.vePortLabel {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.vePortRowOutput .vePortLabel { text-align: right; }
+
+/* 端口圆点/箭头：UE 风格 */
+.vePortDot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+    background: #0d1119;
     cursor: crosshair;
     flex-shrink: 0;
     position: relative;
     z-index: 2;
+    box-sizing: border-box;
+    transition: transform .06s;
 }
-.ve-port-dot.exec { border-color: #eee; border-radius: 2px; }
-.ve-port-dot.expr { border-radius: 50%; }
-.ve-port-dot:hover { background: #5b9dff; }
+.vePortDot:hover { transform: scale(1.35); background: #fff; }
 
-.ve-edge-svg {
+.vePortDotExec {
+    border-radius: 3px;
+    border: none;
+    width: 11px;
+    height: 13px;
+    background: #dfe6f0;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.vePortDotExec:hover { background: #fff; }
+
+.vePortDotNumber { border-color: #7ce87c; }
+.vePortDotString { border-color: #ff7ce8; }
+.vePortDotBool { border-color: #ff6b6b; }
+.vePortDotAny { border-color: #56c8f0; }
+
+.veSubGraphHint {
+    font-size: 10px;
+    color: #8fa4c8;
+    padding: 2px 10px;
+    opacity: .8;
+}
+
+/* ---------- 连线 ---------- */
+.veEdgeSvg {
     position: absolute;
     top: 0;
     left: 0;
@@ -242,132 +309,172 @@
     overflow: visible;
     pointer-events: none;
 }
-.ve-edge-path {
-    stroke: #6f8fd8;
+
+.veEdgePath {
+    stroke: #58c8f0;
     stroke-width: 2.5;
     fill: none;
     pointer-events: stroke;
     cursor: pointer;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .5));
 }
-.ve-edge-path.exec { stroke: #d8e4ff; }
-.ve-edge-path:hover { stroke: #ff8866; }
+.veEdgePathExec { stroke: #cfd9e8; }
+.veEdgePathHover { stroke: #ff8866 !important; stroke-width: 3.5; }
 
-.ve-ghost-path {
+.veEdgeGhost {
     stroke: #7aa8ff;
-    stroke-dasharray: 6 4;
+    stroke-dasharray: 7 5;
     stroke-width: 2;
     fill: none;
+    opacity: .85;
 }
 
-.ve-inspector {
-    width: 280px;
+/* ---------- 右侧属性面板 ---------- */
+.veInspector {
+    width: 275px;
     flex-shrink: 0;
-    background: #171c29;
-    border-left: 1px solid #2a3348;
+    background: #121826;
+    border-left: 1px solid #2c3852;
     overflow-y: auto;
-    padding: 10px;
+    padding: 10px 12px;
     font-size: 13px;
 }
+.veInspector::-webkit-scrollbar { width: 8px; }
+.veInspector::-webkit-scrollbar-thumb { background: #2c3852; border-radius: 4px; }
 
-.ve-inspector h4 {
-    margin: 0 0 4px;
+.veInspectorTitle {
+    margin: 0 0 2px;
     font-size: 14px;
-}
-.ve-inspector .ve-insp-hint {
-    font-size: 11px;
-    color: #7a8db3;
-    margin: 4px 0 10px;
+    color: #eaf1ff;
 }
 
-.ve-param {
-    margin-bottom: 10px;
+.veInspHint {
+    font-size: 11px;
+    color: #6f84ad;
+    margin: 2px 0 10px;
+    border-bottom: 1px solid #232c42;
+    padding-bottom: 8px;
 }
-.ve-param label {
+
+.veParam { margin-bottom: 10px; }
+
+.veParamLabel {
     display: block;
     font-size: 11px;
-    color: #9fb3d4;
+    color: #8fa4c8;
     margin-bottom: 3px;
 }
-.ve-param input[type="text"],
-.ve-param input[type="number"],
-.ve-param select,
-.ve-param textarea {
+
+.veParamInput,
+.veParamSelect,
+.veParamTextarea {
     width: 100%;
     box-sizing: border-box;
-    background: #10141f;
-    color: #e8ecf5;
-    border: 1px solid #2a3348;
+    background: #0c111c;
+    color: #dce4f2;
+    border: 1px solid #2c3852;
     border-radius: 5px;
-    padding: 5px 7px;
-    font-size: 12.5px;
+    padding: 5px 8px;
+    font-size: 12px;
     outline: none;
     font-family: inherit;
 }
-.ve-param textarea {
+.veParamInput:focus,
+.veParamSelect:focus,
+.veParamTextarea:focus { border-color: #487ab0; }
+
+.veParamTextarea {
     font-family: 'Consolas', 'Menlo', monospace;
-    min-height: 60px;
+    min-height: 58px;
     resize: vertical;
     white-space: pre;
-}
-.ve-param .ve-bool-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    line-height: 1.45;
 }
 
-.ve-code-pane {
+.veBoolRow {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: #b9c8e2;
+}
+
+.veDeleteBtn {
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* ---------- 底部代码区 ---------- */
+.veCodePane {
     flex-shrink: 0;
-    height: 260px;
-    border-top: 1px solid #2a3348;
-    background: #131826;
+    height: 250px;
+    border-top: 1px solid #2c3852;
+    background: #10151f;
     display: flex;
     flex-direction: column;
 }
 
-.ve-code-bar {
+.veCodeBar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border-bottom: 1px solid #2a3348;
+    gap: 10px;
+    padding: 5px 12px;
+    border-bottom: 1px solid #2c3852;
     font-size: 12px;
     flex-shrink: 0;
-}
-.ve-code-bar .ve-code-status {
-    color: #7a8db3;
-    margin-left: auto;
+    color: #b9c8e2;
 }
 
-.ve-code-input {
+.veCodeNote {
+    color: #6f84ad;
+    font-size: 11px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.veCodeStatus {
+    color: #ffd479;
+    margin-left: auto;
+    font-size: 11.5px;
+    white-space: nowrap;
+}
+
+.veCodeInput {
     flex: 1;
-    background: #10141f;
-    color: #cde3ff;
+    background: #0c111c;
+    color: #c8e0ff;
     border: none;
     outline: none;
     resize: none;
-    padding: 10px 14px;
+    padding: 9px 14px;
     font-family: 'Consolas', 'Menlo', monospace;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.5;
     white-space: pre;
     overflow: auto;
     direction: ltr;
 }
 
-.ve-canvas-hint {
+/* ---------- 画布提示 ---------- */
+.veCanvasHint {
     position: absolute;
-    bottom: 10px;
+    bottom: 8px;
     left: 12px;
-    font-size: 11px;
-    color: #5b6a8f;
+    font-size: 10.5px;
+    color: #4f6187;
     pointer-events: none;
+    background: rgba(13, 17, 25, .7);
+    padding: 3px 8px;
+    border-radius: 4px;
+    z-index: 5;
 }
 
-.ve-empty-note {
+.veEmptyNote {
     position: absolute;
-    top: 40px;
-    left: 40px;
-    color: #6f8fd8;
-    font-size: 13px;
+    top: 60px;
+    left: 60px;
+    color: #55688f;
+    font-size: 14px;
     pointer-events: none;
 }

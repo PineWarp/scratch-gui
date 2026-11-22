@@ -999,8 +999,14 @@ ${ctx.subGraph(node, 'bodyGraph', 1)}
         id: 'misc-random',
         category: '网络/存储',
         title: '随机数',
+        inputs: [
+            {name: 'min', label: '最小', kind: 'data'},
+            {name: 'max', label: '最大', kind: 'data'}
+        ],
         outputs: [{name: 'value', label: '值', kind: 'data'}],
         params: [
+            {name: 'min', label: '最小（无连线时）', type: 'number', default: 1},
+            {name: 'max', label: '最大（无连线时）', type: 'number', default: 10},
             {name: 'mode', label: '模式', type: 'select', default: '整数范围',
                 options: ['整数范围', '0~1 小数', 'UUID']}
         ],
@@ -1009,7 +1015,7 @@ ${ctx.subGraph(node, 'bodyGraph', 1)}
             switch (ctx.param(node, 'mode')) {
             case '0~1 小数': return 'Math.random()';
             case 'UUID': return 'crypto.randomUUID()';
-            default: return 'Math.floor(Math.random() * (a - b + 1) + b)';
+            default: return `Math.floor(Math.random() * ((${ctx.expr(node, 'max')}) - (${ctx.expr(node, 'min')}) + 1) + (${ctx.expr(node, 'min')}))`;
             }
         }
     },

@@ -323,14 +323,6 @@ class VisualEditorModal extends React.Component {
         const {mode, meta, code, codeStatus} = this.state;
         const graph = this.currentGraph;
         const selected = this.selectedNode;
-        const metaFields = mode === 'addon' ? [
-            ['name', '插件名称'],
-            ['description', '插件描述']
-        ] : [
-            ['name', '扩展名称'],
-            ['id', '扩展 ID'],
-            ['description', '扩展描述']
-        ];
 
         return (
             <div className={styles.veModal}>
@@ -345,7 +337,7 @@ class VisualEditorModal extends React.Component {
                         {this.state.graphStack.map((frame, i) => (
                             <span
                                 key={i}
-                                className={styles.crumb}
+                                className={`${styles.veCrumb} ${i === this.state.graphStack.length - 1 ? styles.veCrumbCurrent : ''}`}
                                 onClick={() => this.handleBreadcrumb(i)}
                             >
                                 {i > 0 ? '› ' : ''}{frame.title}
@@ -383,6 +375,7 @@ class VisualEditorModal extends React.Component {
                 <div className={styles.veBody}>
                     <NodePalette
                         mode={mode}
+                        inSubGraph={this.state.graphStack.length > 1}
                         onAddNode={this.handleAddNode}
                     />
                     <NodeCanvas
@@ -395,32 +388,22 @@ class VisualEditorModal extends React.Component {
                         onRemoveNode={this.handleRemoveNode}
                         onOpenSubGraph={this.handleOpenSubGraph}
                     />
-                    <div className={styles.veInspector}>
-                        <h4>{mode === 'addon' ? '插件信息' : '扩展信息'}</h4>
-                        {metaFields.map(([k, label]) => (
-                            <div className={styles.veParam} key={k}>
-                                <label>{label}</label>
-                                <input
-                                    type="text"
-                                    value={meta[k] || ''}
-                                    onChange={e => this.handleMetaChange(k, e.target.value)}
-                                />
-                            </div>
-                        ))}
-                        <NodeInspector
-                            node={selected}
-                            onParamChange={this.handleParamChange}
-                            onRemoveNode={this.handleRemoveNode}
-                            onOpenSubGraph={() => selected && this.handleOpenSubGraph(selected.id)}
-                        />
-                    </div>
+                    <NodeInspector
+                        node={selected}
+                        mode={mode}
+                        meta={meta}
+                        onMetaChange={this.handleMetaChange}
+                        onParamChange={this.handleParamChange}
+                        onRemoveNode={this.handleRemoveNode}
+                        onOpenSubGraph={() => selected && this.handleOpenSubGraph(selected.id)}
+                    />
                 </div>
 
                 <div className={styles.veCodePane}>
                     <div className={styles.veCodeBar}>
                         <strong>JS 代码</strong>
-                        <span style={{color: '#7a8db3'}}>
-                            （与节点图双向转换：编译产物头部含节点图存档，粘贴回读即可无损还原）
+                        <span className={styles.veCodeNote}>
+                            （双向转换：编译产物头部含节点图存档，粘贴回读无损还原）
                         </span>
                         <span className={styles.veCodeStatus}>{codeStatus}</span>
                     </div>

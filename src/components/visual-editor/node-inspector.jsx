@@ -1,15 +1,50 @@
 /**
  * 可视化节点编辑器 · 属性面板（右侧）
  * 选中节点的参数编辑（text/number/bool/select/code/graph）。
- * graph 类型参数（子图）显示「双击节点进入编辑」提示 + 清空按钮。
  */
 import React from 'react';
 import PropTypes from 'prop-types';
+import bindAll from 'lodash.bindall';
 import {getType} from '../../lib/visual-node-engine/node-types.js';
+import styles from './visual-editor-modal.css';
 
 class NodeInspector extends React.Component {
+    constructor (props) {
+        super(props);
+        bindAll(this, ['handleChange', 'renderParam', 'renderMeta']);
+    }
+
     handleChange (name, value) {
         this.props.onParamChange(this.props.node.id, name, value);
+    }
+
+    renderMeta () {
+        const {mode, meta, onMetaChange} = this.props;
+        const metaFields = mode === 'addon' ? [
+            ['name', '插件名称'],
+            ['description', '插件描述']
+        ] : [
+            ['name', '扩展名称'],
+            ['id', '扩展 ID'],
+            ['description', '扩展描述']
+        ];
+        return (
+            <div>
+                <h4 className={styles.veInspectorTitle}>信息</h4>
+                {metaFields.map(([k, label]) => (
+                    <div className={styles.veParam} key={k}>
+                        <label className={styles.veParamLabel}>{label}</label>
+                        <input
+                            className={styles.veParamInput}
+                            type="text"
+                            value={meta[k] || ''}
+                            onChange={e => onMetaChange(k, e.target.value)}
+                        />
+                    </div>
+                ))}
+                <div className={styles.veInspHint} />
+            </div>
+        );
     }
 
     renderParam (p, node) {
@@ -17,9 +52,9 @@ class NodeInspector extends React.Component {
         switch (p.type) {
         case 'bool':
             return (
-                <div className="ve-param" key={p.name}>
-                    <label>{p.label}</label>
-                    <div className="ve-bool-row">
+                <div className={styles.veParam} key={p.name}>
+                    <label className={styles.veParamLabel}>{p.label}</label>
+                    <div className={styles.veBoolRow}>
                         <input
                             type="checkbox"
                             checked={!!value}
@@ -31,9 +66,10 @@ class NodeInspector extends React.Component {
             );
         case 'number':
             return (
-                <div className="ve-param" key={p.name}>
-                    <label>{p.label}</label>
+                <div className={styles.veParam} key={p.name}>
+                    <label className={styles.veParamLabel}>{p.label}</label>
                     <input
+                        className={styles.veParamInput}
                         type="number"
                         value={value === null || value === undefined ? p.default : value}
                         onChange={e => this.handleChange(p.name, Number(e.target.value))}
@@ -42,9 +78,10 @@ class NodeInspector extends React.Component {
             );
         case 'select':
             return (
-                <div className="ve-param" key={p.name}>
-                    <label>{p.label}</label>
+                <div className={styles.veParam} key={p.name}>
+                    <label className={styles.veParamLabel}>{p.label}</label>
                     <select
+                        className={styles.veParamSelect}
                         value={value === null || value === undefined ? p.default : value}
                         onChange={e => this.handleChange(p.name, e.target.value)}
                     >
@@ -56,9 +93,10 @@ class NodeInspector extends React.Component {
             );
         case 'code':
             return (
-                <div className="ve-param" key={p.name}>
-                    <label>{p.label}</label>
+                <div className={styles.veParam} key={p.name}>
+                    <label className={styles.veParamLabel}>{p.label}</label>
                     <textarea
+                        className={styles.veParamTextarea}
                         value={value === null || value === undefined ? p.default : value}
                         onChange={e => this.handleChange(p.name, e.target.value)}
                         spellCheck={false}
@@ -67,10 +105,10 @@ class NodeInspector extends React.Component {
             );
         case 'graph':
             return (
-                <div className="ve-param" key={p.name}>
-                    <label>{p.label}</label>
+                <div className={styles.veParam} key={p.name}>
+                    <label className={styles.veParamLabel}>{p.label}</label>
                     <button
-                        className="ve-btn ve-btn-secondary"
+                        className={`${styles.veBtn} ${styles.veBtnSecondary}`}
                         onClick={this.props.onOpenSubGraph}
                     >
                         双击节点进入子图编辑
@@ -79,9 +117,10 @@ class NodeInspector extends React.Component {
             );
         default:
             return (
-                <div className="ve-param" key={p.name}>
-                    <label>{p.label}</label>
+                <div className={styles.veParam} key={p.name}>
+                    <label className={styles.veParamLabel}>{p.label}</label>
                     <input
+                        className={styles.veParamInput}
                         type="text"
                         value={value === null || value === undefined ? p.default : value}
                         placeholder={p.placeholder}
@@ -93,45 +132,53 @@ class NodeInspector extends React.Component {
     }
 
     render () {
-        const {node} = this.props;
-        if (!node) {
-            return (
-                <div className="ve-inspector">
-                    <h4>属性</h4>
-                    <div className="ve-insp-hint">点击节点查看参数；meta 信息在最上方。</div>
-                </div>
-            );
-        }
-        const def = getType(node.type);
-        if (!def) {
-            return (
-                <div className="ve-inspector">
-                    <h4>未知节点</h4>
-                    <div className="ve-insp-hint">类型 {node.type} 不存在（可能来自旧文件）。</div>
-                </div>
-            );
-        }
+        const {node, mode, meta} = this.props;
         return (
-            <div className="ve-inspector">
-                <h4>{def.title}</h4>
-                <div className="ve-insp-hint">
-                    {def.category} · id {node.id}
+            <div className={styles.veInspector}>
+                {this.renderMeta()}
+                {!node ? (
+                    <div>
+                        <h4 className={styles.veInspectorTitle}>属性</h4>
+                        <div className={styles.veInspHint}>点击节点查看参数</div>
+                    </div>
+                ) : (
+                    (() => {
+                        const def = getType(node.type);
+                        if (!def) {
+                            return (
+                                <div>
+                                    <h4 className={styles.veInspectorTitle}>未知节点</h4>
+                                    <div className={styles.veInspHint}>类型 {node.type} 不存在</div>
+                                </div>
+                            );
+                        }
+                        return (
+                            <div>
+                                <h4 className={styles.veInspectorTitle}>{def.title}</h4>
+                                <div className={styles.veInspHint}>
+                                    {def.category} · 节点 id {node.id}
+                                </div>
+                                {(def.params || []).map(p => this.renderParam(p, node))}
+                                <button
+                                    className={`${styles.veBtn} ${styles.veBtnDanger} ${styles.veDeleteBtn}`}
+                                    onClick={() => this.props.onRemoveNode(node.id)}
+                                >
+                                    删除节点
+                                </button>
+                            </div>
+                        );
+                    })()
+                )}
                 </div>
-                {(def.params || []).map(p => this.renderParam(p, node))}
-                <button
-                    className="ve-btn ve-btn-danger"
-                    onClick={() => this.props.onRemoveNode(node.id)}
-                    style={{marginTop: 8}}
-                >
-                    删除节点
-                </button>
-            </div>
         );
     }
 }
 
 NodeInspector.propTypes = {
     node: PropTypes.object,
+    mode: PropTypes.oneOf(['extension', 'addon']),
+    meta: PropTypes.object,
+    onMetaChange: PropTypes.func,
     onParamChange: PropTypes.func,
     onRemoveNode: PropTypes.func,
     onOpenSubGraph: PropTypes.func
